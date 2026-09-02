@@ -1,0 +1,62 @@
+[
+  {
+    "id": "imagen1",
+    "title": "Pano 1",
+    "path": "images/imagen1.jpeg",
+    "hotspots": [
+      {
+        "pitch": -56.25713022973625,
+        "yaw": -104.13708910361143,
+        "sourceImage": "imagen1",
+        "targetImage": "imagen2",
+        "color": "white",
+        "w": 149,
+        "h": 148,
+        "rotate": 25.2,
+        "tilt": 0
+      }
+    ]
+  },
+  {
+    "id": "imagen2",
+    "title": "Pano 2",
+    "path": "images/imagen2.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen3",
+    "title": "Pano 3",
+    "path": "images/imagen3.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen4",
+    "title": "Pano 4",
+    "path": "images/imagen4.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen5",
+    "title": "Pano 5",
+    "path": "images/imagen5.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen7",
+    "title": "Pano 7",
+    "path": "images/imagen7.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen8",
+    "title": "Pano 8",
+    "path": "images/imagen8.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen9",
+    "title": "Pano 9",
+    "path": "images/imagen9.jpeg",
+    "hotspots": []
+  }
+]

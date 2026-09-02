@@ -1,0 +1,50 @@
+[
+  {
+    "id": "imagen1",
+    "title": "Pano 1",
+    "path": "images/imagen1.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen2",
+    "title": "Pano 2",
+    "path": "images/imagen2.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen3",
+    "title": "Pano 3",
+    "path": "images/imagen3.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen4",
+    "title": "Pano 4",
+    "path": "images/imagen4.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen5",
+    "title": "Pano 5",
+    "path": "images/imagen5.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen7",
+    "title": "Pano 7",
+    "path": "images/imagen7.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen8",
+    "title": "Pano 8",
+    "path": "images/imagen8.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen9",
+    "title": "Pano 9",
+    "path": "images/imagen9.jpeg",
+    "hotspots": []
+  }
+]

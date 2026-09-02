@@ -1,0 +1,261 @@
+:root {
+    --primary: #0078d4;
+    --bg-main: #1e1e1e;
+    --bg-side: #2d2d2d;
+    --text: #ffffff;
+    --border: #3d3d3d;
+}
+
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: 'Segoe UI', sans-serif; background: #000; color: var(--text); overflow: hidden; height: 100vh; }
+
+#top-bar { height: 50px; background: var(--bg-side); display: flex; align-items: center; justify-content: space-between; padding: 0 20px; border-bottom: 1px solid var(--border); z-index: 1000; position: relative; }
+.logo { font-weight: bold; color: var(--primary); }
+.mode-switch button { background: transparent; border: 1px solid var(--border); color: white; padding: 5px 15px; cursor: pointer; transition: 0.3s; }
+.mode-switch button.active { background: var(--primary); border-color: var(--primary); }
+#btn-export { background: #28a745; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; }
+
+#main-layout { display: flex; height: calc(100vh - 50px); }
+#viewer-wrapper { flex: 1; position: relative; overflow: hidden; }
+#panorama-container { width: 100%; height: 100%; }
+
+#minimap {
+    position: absolute;
+    left: 16px;
+    top: 16px;
+    width: 220px;
+    height: 170px;
+    z-index: 25;
+    pointer-events: auto;
+    border-radius: 18px;
+    overflow: hidden;
+    border: 1px solid rgba(255, 255, 255, 0.28);
+    box-shadow: 0 12px 30px rgba(0,0,0,0.28);
+    background: #edf1eb;
+}
+
+.minimap__frame {
+    position: relative;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background:
+        linear-gradient(135deg, rgba(240, 241, 234, 1), rgba(216, 220, 207, 1));
+}
+
+.minimap__roads {
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(120deg, transparent 0 15%, rgba(138, 148, 154, 0.82) 15% 16%, transparent 16% 28%, rgba(138, 148, 154, 0.82) 28% 29%, transparent 29% 100%),
+        linear-gradient(28deg, transparent 0 28%, rgba(138, 148, 154, 0.82) 28% 29%, transparent 29% 46%, rgba(138, 148, 154, 0.82) 46% 47%, transparent 47% 100%),
+        linear-gradient(90deg, transparent 0 53%, rgba(138, 148, 154, 0.82) 53% 54%, transparent 54% 100%),
+        linear-gradient(180deg, rgba(255,255,255,0.4), rgba(255,255,255,0));
+    opacity: 0.9;
+}
+
+.minimap__frame::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background:
+        linear-gradient(90deg, rgba(188, 202, 181, 0.45) 0 14%, transparent 14% 100%),
+        linear-gradient(180deg, rgba(188, 202, 181, 0.38) 0 18%, transparent 18% 100%);
+    opacity: 0.8;
+}
+
+.minimap__frame::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(circle at 75% 30%, rgba(111, 145, 112, 0.26), transparent 20%),
+                radial-gradient(circle at 38% 65%, rgba(157, 184, 202, 0.26), transparent 18%);
+}
+
+.minimap__road-line {
+    position: absolute;
+    background: rgba(103, 129, 214, 0.72);
+    border-radius: 999px;
+    box-shadow: inset 0 0 0 1px rgba(255,255,255,0.2);
+}
+
+.minimap__road-line--1 {
+    left: 18%; top: 52%; width: 52%; height: 8px; transform: rotate(20deg);
+}
+
+.minimap__road-line--2 {
+    left: 8%; top: 30%; width: 60%; height: 8px; transform: rotate(-36deg);
+}
+
+.minimap__road-line--3 {
+    left: 52%; top: 18%; width: 36%; height: 8px; transform: rotate(90deg);
+}
+
+.minimap__nodes {
+    position: absolute;
+    inset: 0;
+}
+
+.minimap__node {
+    position: absolute;
+    width: 15px;
+    height: 15px;
+    border: 2px solid rgba(255,255,255,0.85);
+    border-radius: 50%;
+    background: rgba(32, 109, 210, 0.9);
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.25);
+    cursor: pointer;
+    transform: translate(-50%, -50%);
+    transition: transform 0.15s ease, box-shadow 0.15s ease;
+    padding: 0;
+}
+
+.minimap__node:hover {
+    transform: translate(-50%, -50%) scale(1.12);
+}
+
+.minimap__node.active {
+    background: #d33a3a;
+    box-shadow: 0 0 0 3px rgba(211,58,58,0.2);
+}
+
+.minimap__node.current {
+    width: 18px;
+    height: 18px;
+    background: #2ba56b;
+}
+
+.minimap__user {
+    position: absolute;
+    left: 52%;
+    top: 55%;
+    width: 26px;
+    height: 26px;
+    transform: translate(-50%, -50%);
+    transition: left 0.2s ease, top 0.2s ease, transform 0.2s ease;
+    pointer-events: none;
+}
+
+.minimap__user-dot {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: #d83b3b;
+    border: 2px solid white;
+    box-shadow: 0 0 0 4px rgba(216, 59, 59, 0.22);
+}
+
+.minimap__user-arrow {
+    position: absolute;
+    left: 50%;
+    top: -10px;
+    width: 0;
+    height: 0;
+    transform: translateX(-50%) rotate(0deg);
+    border-left: 6px solid transparent;
+    border-right: 6px solid transparent;
+    border-bottom: 12px solid #d83b3b;
+    filter: drop-shadow(0 2px 0 rgba(0,0,0,0.18));
+}
+
+.corner-badge {
+    position: absolute;
+    right: 22px;
+    bottom: 22px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px 9px 10px;
+    background: rgba(17, 17, 17, 0.7);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: 999px;
+    backdrop-filter: blur(6px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+    z-index: 30;
+}
+
+.corner-badge__icon {
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: linear-gradient(135deg, #38bdf8, #2563eb);
+    color: white;
+    font-size: 15px;
+    font-weight: 700;
+    box-shadow: 0 0 0 2px rgba(255,255,255,0.15);
+}
+
+.corner-badge__label {
+    font-size: 12px;
+    letter-spacing: 0.04em;
+    color: #eef6ff;
+    font-weight: 600;
+    opacity: 0.95;
+}
+
+#side-menu { width: 300px; background: var(--bg-side); border-left: 1px solid var(--border); padding: 20px; display: flex; flex-direction: column; gap: 20px; overflow-y: auto; transition: 0.3s; }
+body.view-mode #side-menu { width: 0; padding: 0; border: none; overflow: hidden; }
+
+.menu-section h4 { font-size: 14px; margin-bottom: 5px; color: var(--primary); }
+.menu-section label { display: block; font-size: 12px; margin-bottom: 8px; opacity: 0.7; }
+
+.icon-grid, .color-grid { display: flex; gap: 10px; flex-wrap: wrap; }
+.icon-btn { width: 40px; height: 40px; background: #3d3d3d; border: 1px solid transparent; border-radius: 4px; color: white; cursor: pointer; font-size: 18px; }
+.icon-btn.active { border-color: var(--primary); background: #4d4d4d; }
+
+.color-circle { width: 25px; height: 25px; border-radius: 50%; cursor: pointer; border: 2px solid transparent; }
+.color-circle.active { border-color: var(--primary); transform: scale(1.2); }
+.white { background: white; } .red { background: #ff4d4d; } .blue { background: #4d94ff; } .yellow { background: #ffeb3b; } .black { background: #000; }
+
+.btn-danger { background: #dc3545; color: white; border: none; padding: 10px; border-radius: 4px; cursor: pointer; width: 100%; }
+
+/* HOTSPOTS Y MANEJADORES */
+.custom-hotspot {
+    background-size: contain !important;
+    background-repeat: no-repeat !important;
+    background-color: transparent !important;
+    cursor: move;
+    position: relative;
+}
+
+/* El contenedor del editor visual */
+.hotspot-editor-box {
+    position: absolute;
+    top: -10px; left: -10px;
+    right: -10px; bottom: -10px;
+    border: 2px dashed var(--primary);
+    pointer-events: none;
+    display: none;
+}
+
+.selected .hotspot-editor-box { display: block; }
+
+/* Puntos de control (Manejadores) */
+.handle {
+    position: absolute;
+    width: 12px; height: 12px;
+    background: var(--primary);
+    border: 2px solid white;
+    border-radius: 50%;
+    pointer-events: auto;
+    cursor: pointer;
+}
+
+.handle-rotate {
+    top: -25px; left: 50%; transform: translateX(-50%);
+    cursor: alias;
+}
+
+.handle-resize {
+    bottom: -6px; right: -6px;
+    cursor: nwse-resize;
+}
+
+/* NAVEGACIÓN */
+#ui-navigation { position: absolute; bottom: 20px; left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.6); padding: 10px; border-radius: 50px; display: none; }
+body.view-mode #ui-navigation { display: flex; }
+#thumbnails { display: flex; gap: 10px; }
+.thumb { width: 40px; height: 40px; border-radius: 50%; border: 2px solid white; cursor: pointer; object-fit: cover; opacity: 0.6; }
+.thumb.active { border-color: var(--primary); opacity: 1; }

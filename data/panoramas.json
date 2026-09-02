@@ -1,0 +1,435 @@
+[
+  {
+    "id": "imagen1",
+    "title": "Pano 1",
+    "path": "images/imagen1.jpeg",
+    "hotspots": [
+      {
+        "pitch": -31.664636713733646,
+        "yaw": -174.11037934258138,
+        "sourceImage": "imagen1",
+        "targetId": "imagen2",
+        "color": "white",
+        "w": 109,
+        "h": 106,
+        "rotate": 0,
+        "tilt": 0
+      }
+    ],
+    "initialYaw": 1.2849018400117984,
+    "initialPitch": -9.84758966683892,
+    "forwardYaw": 1.2849018400117984,
+    "forwardPitch": -9.84758966683892,
+    "backwardYaw": 1.2849018400117984,
+    "backwardPitch": -9.84758966683892
+  },
+  {
+    "id": "imagen2",
+    "title": "Pano 2",
+    "path": "images/imagen2.jpeg",
+    "hotspots": [
+      {
+        "pitch": -50.95501415527489,
+        "yaw": -177.75424832361784,
+        "sourceImage": "imagen2",
+        "targetId": "imagen1",
+        "color": "white",
+        "w": 102,
+        "h": 99,
+        "rotate": 0,
+        "tilt": 0
+      },
+      {
+        "pitch": -36.203976151813144,
+        "yaw": 5.851762199928073,
+        "sourceImage": "imagen2",
+        "targetId": "imagen3",
+        "color": "white",
+        "w": 103,
+        "h": 104,
+        "rotate": 0,
+        "tilt": 0
+      }
+    ],
+    "initialYaw": -8.353433648505415,
+    "initialPitch": -29.717818219945443,
+    "forwardYaw": -3.191466020500343,
+    "forwardPitch": -24.253511338628822,
+    "backwardYaw": 175.30842180630736,
+    "backwardPitch": -30.43015095121449
+  },
+  {
+    "id": "imagen3",
+    "title": "Pano 3",
+    "path": "images/imagen3.jpeg",
+    "hotspots": [
+      {
+        "pitch": -32.456312583327524,
+        "yaw": -87.09123173662954,
+        "sourceImage": "imagen3",
+        "targetId": "imagen2",
+        "color": "white",
+        "w": 102,
+        "h": 99,
+        "rotate": 0,
+        "tilt": 0
+      },
+      {
+        "pitch": -22.36150581670553,
+        "yaw": 93.06426027194085,
+        "sourceImage": "imagen3",
+        "targetId": "imagen4",
+        "color": "white",
+        "w": 95,
+        "h": 92,
+        "rotate": 0,
+        "tilt": 0
+      }
+    ],
+    "initialYaw": 75.28372557781358,
+    "initialPitch": -11.620066476138613,
+    "forwardYaw": 80.08485680624062,
+    "forwardPitch": -11.654646387799684,
+    "backwardYaw": -86.68770153387493,
+    "backwardPitch": -16.76880480058683
+  },
+  {
+    "id": "imagen4",
+    "title": "Pano 4",
+    "path": "images/imagen4.jpeg",
+    "hotspots": [
+      {
+        "pitch": -28.625595121719638,
+        "yaw": 3.816757652510489,
+        "sourceImage": "imagen4",
+        "targetId": "imagen3",
+        "color": "white",
+        "w": 101,
+        "h": 100,
+        "rotate": 0,
+        "tilt": 0
+      },
+      {
+        "pitch": -28.14111212438187,
+        "yaw": -178.67091548797313,
+        "sourceImage": "imagen4",
+        "targetId": "imagen5",
+        "color": "white",
+        "w": 102,
+        "h": 103,
+        "rotate": 0,
+        "tilt": 0
+      }
+    ],
+    "initialYaw": 170.28552453025327,
+    "initialPitch": -13.163253900335137,
+    "forwardYaw": 169.1994695138626,
+    "forwardPitch": -13.878064087979649,
+    "backwardYaw": -5.15907819354743,
+    "backwardPitch": -23.002523170545576
+  },
+  {
+    "id": "imagen5",
+    "title": "Pano 5",
+    "path": "images/imagen5.jpeg",
+    "hotspots": [
+      {
+        "pitch": -21.237243190829204,
+        "yaw": 2.12109639666145,
+        "sourceImage": "imagen5",
+        "targetId": "imagen4",
+        "color": "white",
+        "w": 102,
+        "h": 102,
+        "rotate": 0,
+        "tilt": 0
+      },
+      {
+        "pitch": -15.49602643570972,
+        "yaw": -178.96915009026503,
+        "sourceImage": "imagen5",
+        "targetId": "imagen6",
+        "color": "white",
+        "w": 87,
+        "h": 82,
+        "rotate": 0,
+        "tilt": 0
+      }
+    ],
+    "initialYaw": 0,
+    "initialPitch": 0,
+    "forwardYaw": 173.79917011889995,
+    "forwardPitch": -11.180926995294195,
+    "backwardYaw": -2.8268393042626485,
+    "backwardPitch": -12.548998981335943
+  },
+  {
+    "id": "imagen7",
+    "title": "Pano 7",
+    "path": "images/imagen7.jpeg",
+    "hotspots": [
+      {
+        "pitch": -22.4953338679765,
+        "yaw": -86.29669855953719,
+        "sourceImage": "imagen7",
+        "targetId": "imagen6",
+        "color": "white",
+        "w": 98,
+        "h": 100,
+        "rotate": 0,
+        "tilt": 0
+      },
+      {
+        "pitch": -24.759093342382073,
+        "yaw": 86.2459770650488,
+        "sourceImage": "imagen7",
+        "targetId": "imagen8",
+        "color": "white",
+        "w": 98,
+        "h": 98,
+        "rotate": 0,
+        "tilt": 0
+      }
+    ],
+    "initialYaw": 0,
+    "initialPitch": 0,
+    "forwardYaw": 79.56219859601003,
+    "forwardPitch": -13.32216133477432,
+    "backwardYaw": -102.7530041287323,
+    "backwardPitch": -16.393593484554305
+  },
+  {
+    "id": "imagen8",
+    "title": "Pano 8",
+    "path": "images/imagen8.jpeg",
+    "hotspots": [
+      {
+        "pitch": -29.558717790675015,
+        "yaw": -98.29114639460745,
+        "sourceImage": "imagen8",
+        "targetId": "imagen7",
+        "color": "white",
+        "w": 95,
+        "h": 98,
+        "rotate": 0,
+        "tilt": 0
+      },
+      {
+        "pitch": -50.595875670399515,
+        "yaw": 6.311453537819654,
+        "sourceImage": "imagen8",
+        "targetId": "imagen9",
+        "color": "white",
+        "w": 102,
+        "h": 99,
+        "rotate": 0,
+        "tilt": 0
+      }
+    ],
+    "initialYaw": 0,
+    "initialPitch": 0,
+    "forwardYaw": 19.25024054943117,
+    "forwardPitch": -36.858818285919554,
+    "backwardYaw": -102.59277488682659,
+    "backwardPitch": -23.126428900550223
+  },
+  {
+    "id": "imagen9",
+    "title": "Pano 9",
+    "path": "images/imagen9.jpeg",
+    "hotspots": [
+      {
+        "pitch": -18.811799247301725,
+        "yaw": 0.38743556381255884,
+        "sourceImage": "imagen9",
+        "targetId": "imagen8",
+        "color": "white",
+        "w": 98,
+        "h": 98,
+        "rotate": 0,
+        "tilt": 0
+      },
+      {
+        "pitch": -17.604902779725176,
+        "yaw": -88.96568645264453,
+        "sourceImage": "imagen9",
+        "targetId": "imagen10",
+        "color": "white",
+        "w": 102,
+        "h": 101,
+        "rotate": 0,
+        "tilt": 0
+      }
+    ],
+    "initialYaw": 0,
+    "initialPitch": 0,
+    "forwardYaw": -88.64286213088837,
+    "forwardPitch": -21.69675864620475,
+    "backwardYaw": -1.1207871350503638,
+    "backwardPitch": -15.24746234827001
+  },
+  {
+    "id": "imagen6",
+    "title": "Panel 6",
+    "path": "images/imagen6.jpeg",
+    "hotspots": [
+      {
+        "pitch": -28.178000558750387,
+        "yaw": -175.9908735433463,
+        "sourceImage": "imagen6",
+        "targetId": "imagen5",
+        "color": "white",
+        "w": 100,
+        "h": 102,
+        "rotate": 0,
+        "tilt": 0
+      },
+      {
+        "pitch": -18.335679313675872,
+        "yaw": 5.079607860014564,
+        "sourceImage": "imagen6",
+        "targetId": "imagen7",
+        "color": "white",
+        "w": 103,
+        "h": 100,
+        "rotate": 0,
+        "tilt": 0
+      }
+    ],
+    "initialYaw": 0,
+    "initialPitch": 0,
+    "forwardYaw": 0,
+    "forwardPitch": 0,
+    "backwardYaw": -177.45108967437966,
+    "backwardPitch": -18.187596053057046
+  },
+  {
+    "id": "imagen10",
+    "title": "Panel 10",
+    "path": "images/imagen10.jpeg",
+    "hotspots": [
+      {
+        "pitch": -44.055897974291625,
+        "yaw": 7.06497525546871,
+        "sourceImage": "imagen10",
+        "targetId": "imagen9",
+        "color": "white",
+        "w": 95,
+        "h": 92,
+        "rotate": 0,
+        "tilt": 0
+      },
+      {
+        "pitch": -15.97181267730916,
+        "yaw": 177.70312627440578,
+        "sourceImage": "imagen10",
+        "targetId": "imagen11",
+        "color": "white",
+        "w": 97,
+        "h": 101,
+        "rotate": 0,
+        "tilt": 0
+      }
+    ],
+    "initialYaw": 0,
+    "initialPitch": 0,
+    "forwardYaw": 171.5705242868529,
+    "forwardPitch": -8.098850823239834,
+    "backwardYaw": -4.069523104698874,
+    "backwardPitch": -32.713255980949405
+  },
+  {
+    "id": "imagen11",
+    "title": "Panel 11",
+    "path": "images/imagen11.jpeg",
+    "hotspots": [
+      {
+        "pitch": -26.631318564269836,
+        "yaw": -86.57137233528357,
+        "sourceImage": "imagen11",
+        "targetId": "imagen12",
+        "color": "white",
+        "w": 95,
+        "h": 97,
+        "rotate": 0,
+        "tilt": 0
+      },
+      {
+        "pitch": -18.15709453102263,
+        "yaw": 88.99039864721554,
+        "sourceImage": "imagen11",
+        "targetId": "imagen10",
+        "color": "white",
+        "w": 93,
+        "h": 90,
+        "rotate": 0,
+        "tilt": 0
+      }
+    ],
+    "initialYaw": 0,
+    "initialPitch": 0,
+    "forwardYaw": -94.37664371603728,
+    "forwardPitch": -19.0078476720439,
+    "backwardYaw": 83.76414506191327,
+    "backwardPitch": -18.408720142326498
+  },
+  {
+    "id": "imagen12",
+    "title": "Panel 12",
+    "path": "images/imagen12.jpeg",
+    "hotspots": [
+      {
+        "pitch": -19.172927640575935,
+        "yaw": 3.6980857360651367,
+        "sourceImage": "imagen12",
+        "targetId": "imagen11",
+        "color": "white",
+        "w": 87,
+        "h": 87,
+        "rotate": 0,
+        "tilt": 0
+      },
+      {
+        "pitch": -16.601329619240218,
+        "yaw": 176.682121362276,
+        "sourceImage": "imagen12",
+        "targetId": "imagen13",
+        "color": "white",
+        "w": 93,
+        "h": 93,
+        "rotate": 0,
+        "tilt": 0
+      }
+    ],
+    "initialYaw": 0,
+    "initialPitch": 0,
+    "forwardYaw": 171.9685266864384,
+    "forwardPitch": -14.391192598410182,
+    "backwardYaw": -16.5242357273695,
+    "backwardPitch": -14.626265211617394
+  },
+  {
+    "id": "imagen13",
+    "title": "Panel 13",
+    "path": "images/imagen13.jpeg",
+    "hotspots": [
+      {
+        "pitch": -9.291218669062683,
+        "yaw": -177.7178766826843,
+        "sourceImage": "imagen13",
+        "targetId": "imagen12",
+        "color": "white",
+        "w": 90,
+        "h": 89,
+        "rotate": 0,
+        "tilt": 0
+      }
+    ],
+    "initialYaw": 0,
+    "initialPitch": 0,
+    "forwardYaw": 0.24580557951696846,
+    "forwardPitch": -7.226121462447086,
+    "backwardYaw": 171.5534763050391,
+    "backwardPitch": -7.733070989169438
+  }
+]

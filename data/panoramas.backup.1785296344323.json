@@ -1,0 +1,131 @@
+[
+  {
+    "id": "imagen1",
+    "title": "Pano 1",
+    "path": "images/imagen1.jpeg",
+    "hotspots": [
+      {
+        "pitch": -56.95685731886729,
+        "yaw": -106.40756380075811,
+        "sourceImage": "imagen1",
+        "targetId": "imagen2",
+        "color": "white",
+        "w": 149,
+        "h": 148,
+        "rotate": 25.2,
+        "tilt": 0
+      }
+    ]
+  },
+  {
+    "id": "imagen2",
+    "title": "Pano 2",
+    "path": "images/imagen2.jpeg",
+    "hotspots": [
+      {
+        "pitch": -69.14979815078091,
+        "yaw": -111.15064186722459,
+        "sourceImage": "imagen2",
+        "targetId": "imagen1",
+        "color": "white",
+        "w": 97,
+        "h": 187,
+        "rotate": 55.2,
+        "tilt": -35
+      },
+      {
+        "pitch": -68.77785479414477,
+        "yaw": 140.50708102700304,
+        "sourceImage": "imagen2",
+        "targetId": "imagen3",
+        "color": "white",
+        "w": 70,
+        "h": 120,
+        "rotate": 21,
+        "tilt": 0
+      }
+    ]
+  },
+  {
+    "id": "imagen3",
+    "title": "Pano 3",
+    "path": "images/imagen3.jpeg",
+    "hotspots": [
+      {
+        "pitch": -33.955224364753605,
+        "yaw": 143.01143331743853,
+        "sourceImage": "imagen3",
+        "targetId": "imagen2",
+        "color": "white",
+        "w": 60,
+        "h": 60,
+        "rotate": 0,
+        "tilt": 0
+      },
+      {
+        "pitch": -67.25075861279429,
+        "yaw": -72.29917421407782,
+        "sourceImage": "imagen3",
+        "targetId": "imagen4",
+        "color": "white",
+        "w": 60,
+        "h": 60,
+        "rotate": 28.799999999999997,
+        "tilt": 0
+      }
+    ]
+  },
+  {
+    "id": "imagen4",
+    "title": "Pano 4",
+    "path": "images/imagen4.jpeg",
+    "hotspots": [
+      {
+        "pitch": -41.00372810331889,
+        "yaw": 17.091700060234928,
+        "sourceImage": "imagen4",
+        "targetId": "imagen3",
+        "color": "white",
+        "w": 65,
+        "h": 83,
+        "rotate": 25.8,
+        "tilt": 0
+      },
+      {
+        "pitch": -87.79529803173733,
+        "yaw": 138.30283718787538,
+        "sourceImage": "imagen4",
+        "targetId": "imagen3",
+        "color": "white",
+        "w": 60,
+        "h": 60,
+        "rotate": 45.6,
+        "tilt": 0
+      }
+    ]
+  },
+  {
+    "id": "imagen5",
+    "title": "Pano 5",
+    "path": "images/imagen5.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen7",
+    "title": "Pano 7",
+    "path": "images/imagen7.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen8",
+    "title": "Pano 8",
+    "path": "images/imagen8.jpeg",
+    "hotspots": []
+  },
+  {
+    "id": "imagen9",
+    "title": "Pano 9",
+    "path": "images/imagen9.jpeg",
+    "hotspots": []
+  }
+]

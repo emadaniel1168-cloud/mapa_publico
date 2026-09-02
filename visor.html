@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>360 Studio PRO - Versión Estable</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.css">
+    <style>
+        :root { --primary: #0078d4; --bg: #1e1e1e; }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { font-family: 'Segoe UI', sans-serif; background: #000; color: #fff; overflow: hidden; height: 100vh; }
+        #top-bar { height: 50px; background: #2d2d2d; display: flex; align-items: center; justify-content: space-between; padding: 0 20px; z-index: 1000; position: relative; }
+        .mode-switch button { background: transparent; border: 1px solid #444; color: white; padding: 5px 15px; cursor: pointer; }
+        .mode-switch button.active { background: var(--primary); border-color: var(--primary); }
+        #main-layout { display: flex; height: calc(100vh - 50px); }
+        #viewer-wrapper { flex: 1; position: relative; }
+        #panorama-container { width: 100%; height: 100%; }
+        #side-menu { width: 300px; background: #2d2d2d; padding: 20px; display: flex; flex-direction: column; gap: 15px; overflow-y: auto; }
+        body.view-mode #side-menu { display: none; }
+        
+        .custom-arrow { cursor: pointer; }
+        .arrow-inner {
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='white'%3E%3Cpath d='M12 2L4.5 20.29L5.21 21L12 18L18.79 21L19.5 20.29L12 2Z'/%3E%3C/svg%3E");
+            background-size: 100% 100% !important; background-repeat: no-repeat !important;
+            background-color: transparent !important;
+            display: inline-block;
+            transform-origin: 50% 50%;
+            transform-box: fill-box;
+            will-change: transform;
+        }
+        .rotate-handle:hover { cursor: grab; }
+        .arrow-inner.selected { border: 2px dashed var(--primary); }
+        
+        .menu-section label { display: block; font-size: 11px; opacity: 0.7; margin-bottom: 5px; }
+        .menu-section input[type="range"] { width: 100%; margin-bottom: 10px; }
+        .val-text { float: right; font-weight: bold; color: var(--primary); }
+    </style>
+</head>
+<body class="edit-mode">
+    <div id="top-bar">
+        <div style="font-weight:bold">360° Studio PRO</div>
+        <div class="mode-switch">
+            <button id="btn-mode-view">👁️ Vista</button>
+            <button id="btn-mode-edit" class="active">✏️ Editar</button>
+        </div>
+        <button id="btn-export" style="background:#28a745; color:white; border:none; padding:5px 15px; border-radius:4px; cursor:pointer">💾 Guardar</button>
+    </div>
+    <div id="main-layout">
+        <div id="viewer-wrapper">
+            <div id="panorama-container"></div>
+        </div>
+        <div id="side-menu">
+            <button id="btn-add" style="background:var(--primary); color:white; border:none; padding:12px; border-radius:6px; cursor:pointer; font-weight:bold">➕ Añadir Flecha Aquí</button>
+            
+            <div class="menu-section">
+                <label>Imagen donde estás:</label>
+                <div id="label-source" style="padding:8px; background:#111; border:1px solid #222; color:#ddd; border-radius:4px">-</div>
+            </div>
+
+            <div class="menu-section">
+                <label>Destino (imagen a donde va):</label>
+                <select id="select-target" style="width:100%; padding:8px; background:#333; color:white; border:1px solid #444"></select>
+            </div>
+            
+            <div class="menu-section">
+                <label>Color:</label>
+                <select id="select-color" style="width:100%; padding:8px; background:#333; color:white; border:1px solid #444">
+                    <option value="white">Blanco</option>
+                    <option value="red">Rojo</option>
+                    <option value="blue">Azul</option>
+                    <option value="yellow">Amarillo</option>
+                </select>
+            </div>
+
+            <hr style="opacity:0.1">
+
+            <div class="menu-section">
+                <label>Giro (Dirección): <span id="val-rot" class="val-text">0°</span></label>
+                <input type="range" id="range-rot" min="0" max="360" value="0">
+                
+                <label>Inclinación (Perspectiva): <span id="val-tilt" class="val-text">0°</span></label>
+                <input type="range" id="range-tilt" min="-90" max="90" value="0">
+                
+                <label>Ancho: <span id="val-w" class="val-text">60px</span></label>
+                <input type="range" id="range-w" min="20" max="200" value="60">
+                
+                <label>Alto: <span id="val-h" class="val-text">60px</span></label>
+                <input type="range" id="range-h" min="20" max="200" value="60">
+            </div>
+
+            <button id="btn-del" style="background:#dc3545; color:white; border:none; padding:10px; border-radius:4px; cursor:pointer; width:100%">🗑️ Eliminar Flecha</button>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
+    <script>
+        const panoramas = [
+            { id: 'imagen1', title: 'Pano 1', path: 'images/imagen1.jpeg', hotspots: [] },
+            { id: 'imagen2', title: 'Pano 2', path: 'images/imagen2.jpeg', hotspots: [] },
+            { id: 'imagen3', title: 'Pano 3', path: 'images/imagen3.jpeg', hotspots: [] },
+            { id: 'imagen4', title: 'Pano 4', path: 'images/imagen4.jpeg', hotspots: [] },
+            { id: 'imagen5', title: 'Pano 5', path: 'images/imagen5.jpeg', hotspots: [] },
+            { id: 'imagen7', title: 'Pano 7', path: 'images/imagen7.jpeg', hotspots: [] },
+            { id: 'imagen8', title: 'Pano 8', path: 'images/imagen8.jpeg', hotspots: [] },
+            { id: 'imagen9', title: 'Pano 9', path: 'images/imagen9.jpeg', hotspots: [] }
+        ];
+
+        let viewer = null, currentPano = panoramas[0], selectedHS = null, isEdit = true, draggingHS = null, isDragging = false, rotateDragging = false, rotateStartX = 0, rotateStartRotate = 0;
+
+        function init() {
+            if (viewer) viewer.destroy();
+            viewer = pannellum.viewer('panorama-container', {
+                "type": "equirectangular",
+                "panorama": currentPano.path,
+                "autoLoad": true,
+                "renderer": "webgl",
+                "hfov": 90,
+                "showControls": false
+            });
+            viewer.on('load', () => { renderHS(); if(typeof updateSourceLabel === 'function') updateSourceLabel(); });
+            const cont = document.getElementById('panorama-container');
+            cont.ondblclick = (e) => { if (isEdit) { const c = viewer.mouseEventToCoords(e); if(c) addHS(c[0], c[1]); } };
+        }
+
+        function addHS(p, y) {
+            const defaultTarget = document.getElementById('select-target').value || panoramas[0].id;
+            const newH = { pitch: p, yaw: y, targetId: defaultTarget, sourceImage: currentPano.id, color: 'white', w: 60, h: 60, rotate: 0, tilt: 0 };
+            currentPano.hotspots.push(newH);
+            selectedHS = newH;
+            renderHS();
+            syncMenu();
+        }
+
+        function renderHS() {
+            const cfg = viewer.getConfig();
+            if (cfg.hotSpots) [...cfg.hotSpots].forEach(h => viewer.removeHotSpot(h.id));
+
+            currentPano.hotspots.forEach((hs, i) => {
+                viewer.addHotSpot({
+                    "id": "h"+i, "pitch": hs.pitch, "yaw": hs.yaw, "cssClass": "custom-arrow",
+                    "createTooltipFunc": (el) => {
+                        if (selectedHS === hs) el.classList.add('selected');
+                        // Crear elemento interior para la flecha y aplicar rotación/estilos allí
+                        el.innerHTML = '';
+                        const inner = document.createElement('div');
+                        inner.className = 'arrow-inner' + (selectedHS === hs ? ' selected' : '');
+                        inner.style.width = hs.w + "px"; inner.style.height = hs.h + "px";
+                        inner.style.transform = `rotate(${hs.rotate}deg) rotateX(${hs.tilt}deg)`;
+                        const f = { white: 'brightness(0) invert(1)', red: 'sepia(1) saturate(5) hue-rotate(-50deg)', blue: 'sepia(1) saturate(5) hue-rotate(180deg)', yellow: 'sepia(1) saturate(5) hue-rotate(10deg)' };
+                        inner.style.filter = f[hs.color];
+                        inner.style.touchAction = 'none';
+                        inner.style.cursor = 'pointer';
+                        inner.style.position = 'relative';
+
+                        // Arrastre desde el elemento interior (mover)
+                        inner.onpointerdown = (ev) => {
+                            // Si estamos en modo de rotación, no iniciar movimiento
+                            if(!isEdit || rotateDragging) return;
+                            ev.preventDefault(); ev.stopPropagation();
+                            draggingHS = hs; isDragging = true;
+                        };
+
+                        // Handle para rotar (pequeño círculo en esquina)
+                        const rotHandle = document.createElement('div');
+                        rotHandle.className = 'rotate-handle';
+                        rotHandle.title = 'Arrastra para rotar';
+                        rotHandle.style.position = 'absolute';
+                        rotHandle.style.right = '-10px';
+                        rotHandle.style.top = '-10px';
+                        rotHandle.style.width = '16px';
+                        rotHandle.style.height = '16px';
+                        rotHandle.style.borderRadius = '50%';
+                        rotHandle.style.background = 'rgba(255,255,255,0.95)';
+                        rotHandle.style.border = '1px solid rgba(0,0,0,0.2)';
+                        rotHandle.style.cursor = 'grab';
+                        rotHandle.style.display = 'flex';
+                        rotHandle.style.alignItems = 'center';
+                        rotHandle.style.justifyContent = 'center';
+                        rotHandle.style.fontSize = '10px';
+                        rotHandle.textContent = '⤾';
+
+                        rotHandle.onpointerdown = (ev) => {
+                            if(!isEdit) return;
+                            ev.preventDefault(); ev.stopPropagation();
+                            rotateDragging = true;
+                            rotateStartX = ev.clientX;
+                            rotateStartRotate = Number(hs.rotate) || 0;
+                        };
+                        rotHandle.onpointerover = () => { rotHandle.style.cursor = 'grab'; };
+                        rotHandle.onpointerout = () => { rotHandle.style.cursor = 'default'; };
+
+                        // Actualizar título del handle (ayuda)
+                        rotHandle.title = 'Rotar';
+
+                        el.appendChild(inner);
+                        el.appendChild(rotHandle);
+                    },
+                    "clickHandlerFunc": () => {
+                        if (isEdit) { selectedHS = hs; renderHS(); syncMenu(); }
+                        else { const t = panoramas.find(p => p.id === hs.targetId); if(t) { currentPano = t; init(); } }
+                    }
+                });
+            });
+        }
+
+        // Manejo global de arrastre (pointermove / up) y rotación
+        document.onpointermove = (e) => {
+            if (rotateDragging && selectedHS) {
+                const dx = e.clientX - rotateStartX;
+                const sensitivity = 0.6; // grados por pixel
+                selectedHS.rotate = (rotateStartRotate + dx * sensitivity) % 360;
+                if (selectedHS.rotate < 0) selectedHS.rotate += 360;
+                renderHS(); syncMenu();
+                return;
+            }
+
+            if (!isDragging || !draggingHS) return;
+            const coords = viewer.mouseEventToCoords(e);
+            if (!coords) return;
+            draggingHS.pitch = coords[0];
+            draggingHS.yaw = coords[1];
+            renderHS();
+            syncMenu();
+        };
+
+        document.onpointerup = () => { if(isDragging) { isDragging = false; draggingHS = null; } if(rotateDragging) { rotateDragging = false; } };
+
+        function syncMenu() {
+            if(!selectedHS) return;
+            document.getElementById('select-target').value = selectedHS.targetId;
+            document.getElementById('select-color').value = selectedHS.color;
+            document.getElementById('range-rot').value = selectedHS.rotate;
+            document.getElementById('range-tilt').value = selectedHS.tilt;
+            document.getElementById('range-w').value = selectedHS.w;
+            document.getElementById('range-h').value = selectedHS.h;
+            
+            document.getElementById('val-rot').textContent = selectedHS.rotate + "°";
+            document.getElementById('val-tilt').textContent = selectedHS.tilt + "°";
+            document.getElementById('val-w').textContent = selectedHS.w + "px";
+            document.getElementById('val-h').textContent = selectedHS.h + "px";
+        }
+
+        document.getElementById('range-rot').oninput = (e) => { if(selectedHS) { selectedHS.rotate = Number(e.target.value); renderHS(); syncMenu(); } };
+        document.getElementById('range-tilt').oninput = (e) => { if(selectedHS) { selectedHS.tilt = Number(e.target.value); renderHS(); syncMenu(); } };
+        document.getElementById('range-w').oninput = (e) => { if(selectedHS) { selectedHS.w = Number(e.target.value); renderHS(); syncMenu(); } };
+        document.getElementById('range-h').oninput = (e) => { if(selectedHS) { selectedHS.h = Number(e.target.value); renderHS(); syncMenu(); } };
+        
+        document.getElementById('btn-add').onclick = () => addHS(viewer.getPitch(), viewer.getYaw());
+        document.getElementById('btn-del').onclick = () => { if(selectedHS) { currentPano.hotspots = currentPano.hotspots.filter(h => h !== selectedHS); selectedHS = null; renderHS(); } };
+        document.getElementById('select-target').onchange = (e) => { if(selectedHS) selectedHS.targetId = e.target.value; };
+        document.getElementById('select-color').onchange = (e) => { if(selectedHS) { selectedHS.color = e.target.value; renderHS(); } };
+        document.getElementById('btn-mode-view').onclick = () => { isEdit = false; document.body.classList.replace('edit-mode', 'view-mode'); renderHS(); };
+        document.getElementById('btn-mode-edit').onclick = () => { isEdit = true; document.body.classList.replace('view-mode', 'edit-mode'); renderHS(); };
+        // Guardar (descargar) configuración completa como JSON
+        function buildExportCopy() {
+            const copy = JSON.parse(JSON.stringify(panoramas));
+            copy.forEach(p => {
+                if (p.hotspots && p.hotspots.length) {
+                    p.hotspots = p.hotspots.map(h => ({
+                        pitch: h.pitch,
+                        yaw: h.yaw,
+                        sourceImage: p.id,
+                        targetImage: h.targetId || h.target || null,
+                        color: h.color,
+                        w: h.w,
+                        h: h.h,
+                        rotate: h.rotate,
+                        tilt: h.tilt
+                    }));
+                }
+            });
+            return copy;
+        }
+
+        function downloadJSON(obj, filename = 'panoramas_export.json') {
+            const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        // Intenta guardar en un servidor local (POST /save). Si falla, descarga JSON como fallback.
+        function savePanoramas() {
+            const copy = buildExportCopy();
+            // Comprobar servidor
+            fetch('http://localhost:3000/', { method: 'GET' }).then(resp => {
+                if (!resp.ok) throw new Error('Servidor no disponible');
+                // Preguntar confirmación al usuario antes de sobrescribir
+                if (!confirm('Esto sobrescribirá data/panoramas.json en el proyecto. ¿Deseas continuar?')) return;
+                fetch('http://localhost:3000/save', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(copy)
+                }).then(res => res.json()).then(obj => {
+                    if (obj && obj.ok) {
+                        alert('Guardado en servidor: ' + obj.path + '\n(Se creó una copia de seguridad si ya existía)');
+                    } else {
+                        throw new Error(obj && obj.error ? obj.error : 'Error al guardar');
+                    }
+                }).catch(err => {
+                    console.error(err);
+                    downloadJSON(copy);
+                    alert('Error guardando en servidor; se descargó panoramas_export.json');
+                });
+            }).catch(() => {
+                // Fallback: descarga
+                if (confirm('Servidor de guardado no está disponible. ¿Deseas descargar el JSON en su lugar?')) {
+                    downloadJSON(copy);
+                    alert('Se descargó panoramas_export.json');
+                }
+            });
+        }
+
+        document.getElementById('btn-export').onclick = savePanoramas;
+
+        document.getElementById('select-target').innerHTML = panoramas.map(p => `<option value="${p.id}">${p.title}</option>`).join('');
+        // Mostrar la imagen actual en la UI
+        const labelSource = document.getElementById('label-source');
+        function updateSourceLabel() { if(labelSource) labelSource.textContent = currentPano.title || currentPano.id; }
+        // Inicializar y mantener actualizado
+        init();
+        updateSourceLabel();
+    </script>
+</body>
+</html>
+

@@ -1,0 +1,56 @@
+[
+    {
+        "id": "imagen1",
+        "title": "Vista Panorámica 1",
+        "description": "Descripción de la primera ubicación",
+        "path": "images/imagen1.jpeg"
+    },
+    {
+        "id": "imagen2",
+        "title": "Vista Panorámica 2",
+        "description": "Descripción de la segunda ubicación",
+        "path": "images/imagen2.jpeg"
+    },
+    {
+        "id": "imagen3",
+        "title": "Vista Panorámica 3",
+        "description": "Descripción de la tercera ubicación",
+        "path": "images/imagen3.jpeg"
+    },
+    {
+        "id": "imagen4",
+        "title": "Vista Panorámica 4",
+        "description": "Descripción de la cuarta ubicación",
+        "path": "images/imagen4.jpeg"
+    },
+    {
+        "id": "imagen5",
+        "title": "Vista Panorámica 5",
+        "description": "Descripción de la quinta ubicación",
+        "path": "images/imagen5.jpeg"
+    },
+    {
+        "id": "imagen6",
+        "title": "Vista Panorámica 6",
+        "description": "Descripción de la sexta ubicación",
+        "path": "images/imagen6.jpeg"
+    },
+    {
+        "id": "imagen7",
+        "title": "Vista Panorámica 7",
+        "description": "Descripción de la séptima ubicación",
+        "path": "images/imagen7.jpeg"
+    },
+    {
+        "id": "imagen8",
+        "title": "Vista Panorámica 8",
+        "description": "Descripción de la octava ubicación",
+        "path": "images/imagen8.jpeg"
+    },
+    {
+        "id": "imagen9",
+        "title": "Vista Panorámica 9",
+        "description": "Descripción de la novena ubicación",
+        "path": "images/imagen9.jpeg"
+    }
+]
