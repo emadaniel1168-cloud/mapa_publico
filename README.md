@@ -19,17 +19,17 @@ C:\xampp\htdocs\recorrido-360\api\
 
 En phpMyAdmin importa primero el archivo original `colegio_santander.sql`. Después importa `01_lugares_360.sql` para crear la tabla adicional.
 
-Verifica en `db.php` estos valores:
+La conexión lee estas variables de entorno:
 
-```php
-const DB_HOST = '127.0.0.1';
-const DB_PORT = '3306';
-const DB_NAME = 'colegio_santander';
-const DB_USER = 'root';
-const DB_PASS = '';
+```text
+MYSQLHOST
+MYSQLPORT
+MYSQLDATABASE
+MYSQLUSER
+MYSQLPASSWORD
 ```
 
-Si tu usuario o contraseña de MariaDB son diferentes, actualiza solamente esos valores.
+Configúralas en el entorno donde se ejecuta PHP. En Railway, agrega allí los valores de conexión de Railway; no los guardes en el repositorio. Si no están definidas, `db.php` usa los valores locales de XAMPP.
 
 Inicia Apache y MySQL desde XAMPP. Luego prueba:
 
