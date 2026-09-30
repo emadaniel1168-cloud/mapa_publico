@@ -2,7 +2,7 @@
   {
     "id": "imagen1",
     "title": "Pano 1",
-    "path": "images/imagen1.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/atras_de_la_biblieca_al_fondo_centro.jpg",
     "hotspots": [
       {
         "pitch": -56.25713022973625,
@@ -20,43 +20,43 @@
   {
     "id": "imagen2",
     "title": "Pano 2",
-    "path": "images/imagen2.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/biblioteca_casi_llegando_la_esquina_del_otro_lado.jpg",
     "hotspots": []
   },
   {
     "id": "imagen3",
     "title": "Pano 3",
-    "path": "images/imagen3.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/biblioteca_de_otro_lado_de_la_otra_entrada.jpg",
     "hotspots": []
   },
   {
     "id": "imagen4",
     "title": "Pano 4",
-    "path": "images/imagen4.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/biblioteca_del_otro_lado.jpg",
     "hotspots": []
   },
   {
     "id": "imagen5",
     "title": "Pano 5",
-    "path": "images/imagen5.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/casi_del_casi_llegando_al_fin_del_trayecto.jpg",
     "hotspots": []
   },
   {
     "id": "imagen7",
     "title": "Pano 7",
-    "path": "images/imagen7.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/entrada_de_la_biblioteca.jpg",
     "hotspots": []
   },
   {
     "id": "imagen8",
     "title": "Pano 8",
-    "path": "images/imagen8.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/esquina_de_la_biblioteca_cerca_de_la_caseta.jpg",
     "hotspots": []
   },
   {
     "id": "imagen9",
     "title": "Pano 9",
-    "path": "images/imagen9.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/fin_del_fin_.jpg",
     "hotspots": []
   }
 ]

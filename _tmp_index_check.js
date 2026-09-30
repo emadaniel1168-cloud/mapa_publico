@@ -1,0 +1,3913 @@
+
+        let panoramas = [];
+
+        let viewer = null, currentPano = null, selectedHS = null, selectedCircle = null, isEdit = true, draggingHS = null, isDragging = false, rotateDragging = false, rotateStartX = 0, rotateStartRotate = 0;
+        let viewerLoadRequest = 0;
+        const panoramaImageCache = new Map();
+        let hotspotPlacementType = 'arrow';
+        let allowHotspotMove = false;
+        let routeTargetId = null, routePath = [], routeNextHotspot = null;
+        let routeStatusTimeout = null;
+        let selectedMinimapElement = null;
+        let labelDragState = null;
+        let selectedLabel = null;
+        let viewerObjectClipboard = null;
+        let alertPlacementMode = false;
+        let draggingAlert = null;
+        let suppressAlertClick = false;
+        let saveTimer = null;
+        let minimapaLeaflet = null;
+        let minimapaMarker = null;
+        let minimapaLinea = null;
+        let minimapPlacementMode = null;
+        let minimapIndicator = { x: 50, y: 50 };
+        let minimapAdvancePoints = [];
+        const STORAGE_KEY = 'mapa360.panoramas.v3';
+        const PENDING_STORAGE_KEY = 'mapa360.panoramas.pending.v3';
+        const START_IMAGE_KEY = 'mapa360.start-image.v1';
+        const DEFAULT_START_IMAGE_PATH = 'imagenes_del_colegio/pasillo/inicio_del_mapa.jpg';
+        const MINIMAP_INDICATOR_KEY = 'mapa360.minimap.indicator.v1';
+        const MINIMAP_ADVANCE_KEY = 'mapa360.minimap.advance.v1';
+        const MINIMAP_LOCATIONS_FILE = 'data/ubicaciones_puntos_mapa.json';
+        const MINIMAP_LOCATIONS_VERSION_KEY = 'mapa360.minimap.locations-import.v1';
+        const MINIMAP_LOCATIONS_VERSION = '2026-09-27';
+        const SAVE_DELAY_MS = 500;
+        const MAP_SETTINGS_KEY = 'mapa360.google-map.settings.v1';
+        const DEFAULT_MAP_SETTINGS = { width: 300, opacity: 92, grayscale: 100, left: 16, bottom: 16, zoom: 200, viewX: 50, viewY: 50, followIndicator: true };
+        let mapSettings = { ...DEFAULT_MAP_SETTINGS };
+        const MAP_GUIDE_KEY = 'mapa360.school-guide.v1';
+        let mapGuide = { paths: [], places: [], zones: [], layers: { paths: true, places: true, zones: true, user: true }, panoramaPositions: {} };
+        let activeMapTool = null;
+        let draftPath = [];
+        let selectedMapElement = null;
+        let mapOriginalParent = null;
+        let draggingPathPoint = null;
+        let mapClipboard = null;
+        let horariosColegio = [];
+        let lugaresSugeridos = [];
+        let lugaresBaseDeDatos = [];
+        let calendarioDia = '';
+        let calendarioHora = '';
+
+        async function cargarLugaresDesdeBaseDeDatos() {
+            try {
+                const response = await fetch('api.php?action=lugares', { cache: 'no-store' });
+                const payload = await response.json();
+                const items = Array.isArray(payload?.items) ? payload.items : [];
+                lugaresBaseDeDatos = items
+                    .map(item => ({
+                        id_lugar: item.id_lugar ?? item.id ?? '',
+                        panorama_id: item.panorama_id || '',
+                        titulo: String(item.titulo || item.nombre || '').trim(),
+                        descripcion: String(item.descripcion || '').trim(),
+                        salon: String(item.salon || '').trim(),
+                        grado: String(item.id_grado || item.grado || '').trim(),
+                        profesor: String(item.id_profesor || item.profesor || '').trim()
+                    }))
+                    .filter(item => item.titulo);
+                const target = document.getElementById('quick-nav-target');
+                if (target && document.getElementById('quick-nav-category')?.value === 'lugar') {
+                    populateQuickNavOptions();
+                }
+            } catch (error) {
+                console.warn('No se pudieron cargar los lugares desde la base de datos', error);
+                lugaresBaseDeDatos = [];
+            }
+        }
+
+        async function cargarHorariosColegio() {
+            try {
+                const response = await fetch('data/horarios.json', { cache: 'no-store' });
+                const payload = await response.json();
+                horariosColegio = Array.isArray(payload) ? payload : (payload.horarios || []);
+                configurarHorariosColegio();
+            } catch (error) {
+                try {
+                    const response = await fetch('api.php?action=horarios', { cache: 'no-store' });
+                    const payload = await response.json();
+                    horariosColegio = (payload.items || []).map(h => ({
+                        id_horario: h.id_horario,
+                        grado: h.id_grado,
+                        dia: h.dia_semana,
+                        bloque: h.num_bloque_clase,
+                        curso: h.materia,
+                        profesor: h.id_profesor,
+                        salon: h.salon,
+                        hora_inicio: h.hora_inicio,
+                        hora_fin: h.hora_fin
+                    }));
+                    configurarHorariosColegio();
+                } catch (fallbackError) {
+                    console.warn('No se pudo cargar el listado de horarios', fallbackError);
+                }
+            }
+        }
+
+        function configurarHorariosColegio() {
+                const select = document.getElementById('label-id-horario');
+                if (!select) return;
+            renderizarOpcionesHorario();
+                if (selectedCircle?.idHorario) select.value = selectedCircle.idHorario;
+                select.onchange = () => {
+                    const h = horariosColegio.find(item => String(item.id_horario) === select.value);
+                    if (!h) return;
+                    const set = (id, value) => { const el = document.getElementById(id); if (el) el.value = value || ''; };
+                    const dia = h.dia === 'Miercoles' ? 'Miércoles' : h.dia;
+                    const hora = value => (value || '').slice(0, 5);
+                    set('label-profesor', h.profesor); set('label-grado', h.grado); set('label-curso', h.curso);
+                    set('label-salon', h.salon); set('label-dia', dia); set('label-hora-inicio', hora(h.hora_inicio)); set('label-hora-fin', hora(h.hora_fin));
+                };
+                configurarAutocompletadoProfesores();
+                configurarBusquedaPorSalon();
+                if (selectedCircle) actualizarHorarioDelMarcador(selectedCircle);
+        }
+        function renderizarOpcionesHorario(profesor = '') {
+            const select = document.getElementById('label-id-horario');
+            if (!select) return;
+            const profesorBuscado = profesor.trim().toLowerCase();
+            const horariosFiltrados = profesorBuscado
+                ? horariosColegio.filter(h => String(h.profesor || '').trim().toLowerCase() === profesorBuscado)
+                : horariosColegio;
+            select.innerHTML = '<option value="">Selecciona un curso del horario</option>';
+            horariosFiltrados.forEach(horario => {
+                const option = document.createElement('option');
+                option.value = horario.id_horario;
+                option.textContent = `${horario.grado} · ${horario.dia} · Bloque ${horario.bloque} · ${horario.curso}`;
+                select.appendChild(option);
+            });
+        }
+        async function cargarSugerenciasNombresLugares() {
+            const input = document.getElementById('label-profesor');
+            const box = document.getElementById('sugerencias-profesores');
+            if (!input || !box) return;
+            try {
+                const panoramaId = currentPano && currentPano.id ? currentPano.id : '';
+                const url = panoramaId ? `api.php?action=lugares&panorama_id=${encodeURIComponent(panoramaId)}` : 'api.php?action=lugares';
+                const response = await fetch(url, { cache: 'no-store' });
+                const payload = await response.json();
+                lugaresSugeridos = [...new Set((Array.isArray(payload?.items) ? payload.items : []).map(item => String(item.titulo || '').trim()).filter(Boolean))];
+                box.innerHTML = '';
+                if (!lugaresSugeridos.length) {
+                    const empty = document.createElement('div');
+                    empty.className = 'sugerencia-profesor';
+                    empty.textContent = 'Sin nombres guardados';
+                    empty.style.opacity = '0.7';
+                    box.appendChild(empty);
+                    return;
+                }
+                lugaresSugeridos.slice(0, 10).forEach(nombre => {
+                    const option = document.createElement('button');
+                    option.type = 'button';
+                    option.className = 'sugerencia-profesor';
+                    option.textContent = nombre;
+                    option.addEventListener('mousedown', event => {
+                        event.preventDefault();
+                        input.value = nombre;
+                        box.innerHTML = '';
+                    });
+                    box.appendChild(option);
+                });
+            } catch (error) {
+                console.warn('No se pudieron cargar los nombres desde lugares_360', error);
+                lugaresSugeridos = [];
+                box.innerHTML = '';
+            }
+        }
+
+        function configurarAutocompletadoProfesores() {
+            const input = document.getElementById('label-profesor');
+            const box = document.getElementById('sugerencias-profesores');
+            if (!input || !box || input.dataset.autocompleteReady) return;
+            input.dataset.autocompleteReady = 'true';
+            const profesores = [...new Set(horariosColegio.map(h => h.profesor).filter(p => p && p !== '-'))].sort((a, b) => a.localeCompare(b, 'es'));
+            input.addEventListener('input', () => {
+                const query = input.value.trim().toLowerCase();
+                const isSimpleMode = document.getElementById('label-alert-form-mode')?.value === 'simple';
+                box.innerHTML = '';
+                if (isSimpleMode) {
+                    const nombres = lugaresSugeridos.length ? lugaresSugeridos : [];
+                    const matches = !query ? nombres.slice(0, 8) : nombres.filter(nombre => nombre.toLowerCase().includes(query)).slice(0, 8);
+                    matches.forEach(nombre => {
+                        const option = document.createElement('button');
+                        option.type = 'button'; option.className = 'sugerencia-profesor'; option.textContent = nombre;
+                        option.addEventListener('mousedown', event => {
+                            event.preventDefault();
+                            input.value = nombre;
+                            box.innerHTML = '';
+                        });
+                        box.appendChild(option);
+                    });
+                    if (!matches.length && !query) {
+                        const empty = document.createElement('div');
+                        empty.className = 'sugerencia-profesor';
+                        empty.textContent = 'Sin nombres guardados';
+                        empty.style.opacity = '0.7';
+                        box.appendChild(empty);
+                    }
+                    return;
+                }
+                if (!query) return;
+                profesores.filter(p => p.toLowerCase().includes(query)).slice(0, 8).forEach(profesor => {
+                    const option = document.createElement('button');
+                    option.type = 'button'; option.className = 'sugerencia-profesor'; option.textContent = profesor;
+                    option.addEventListener('mousedown', event => {
+                        event.preventDefault();
+                        input.value = profesor;
+                        renderizarOpcionesHorario(profesor);
+                        box.innerHTML = '';
+                    });
+                    box.appendChild(option);
+                });
+            });
+            input.addEventListener('blur', () => setTimeout(() => {
+                const isSimpleMode = document.getElementById('label-alert-form-mode')?.value === 'simple';
+                if (!isSimpleMode) {
+                    renderizarOpcionesHorario(input.value);
+                }
+                box.innerHTML = '';
+            }, 150));
+        }
+        function configurarBusquedaPorSalon() {
+            const salonInput = document.getElementById('label-salon');
+            if (!salonInput || salonInput.dataset.roomSearchReady) return;
+            salonInput.dataset.roomSearchReady = 'true';
+            const completarProfesor = () => {
+                const salon = salonInput.value.trim().toLowerCase();
+                if (!salon) return;
+                const grado = document.getElementById('label-grado')?.value.trim().toLowerCase() || '';
+                const dia = document.getElementById('label-dia')?.value.trim().toLowerCase() || '';
+                const coincidencias = horariosColegio.filter(horario => String(horario.salon || '').trim().toLowerCase() === salon);
+                const horario = coincidencias.find(item => grado && String(item.grado || '').trim().toLowerCase() === grado && dia && String(item.dia || '').trim().toLowerCase() === dia)
+                    || coincidencias.find(item => grado && String(item.grado || '').trim().toLowerCase() === grado)
+                    || coincidencias.find(item => dia && String(item.dia || '').trim().toLowerCase() === dia)
+                    || coincidencias[0];
+                if (!horario || !horario.profesor) return;
+                const profesorInput = document.getElementById('label-profesor');
+                if (profesorInput) {
+                    profesorInput.value = horario.profesor;
+                    renderizarOpcionesHorario(horario.profesor);
+                }
+            };
+            salonInput.addEventListener('change', completarProfesor);
+            salonInput.addEventListener('blur', completarProfesor);
+        }
+
+        const COORDENADAS_PANORAMAS = {
+            imagen1: [4.4389, -75.2322],
+            imagen2: [4.4392, -75.2318],
+            imagen3: [4.4395, -75.2312],
+            imagen4: [4.4398, -75.2307],
+            imagen5: [4.4401, -75.2301],
+            imagen6: [4.4404, -75.2296],
+            imagen7: [4.4408, -75.2289],
+            imagen8: [4.4411, -75.2284],
+            imagen9: [4.4414, -75.2278],
+            imagen10: [4.4417, -75.2273],
+            imagen11: [4.4419, -75.2268],
+            imagen12: [4.4423, -75.2262],
+            imagen13: [4.4426, -75.2258]
+        };
+
+        function setupLeafletMiniMap() {
+            const contenedor = document.getElementById('minimap');
+            if (!contenedor || minimapaLeaflet) return;
+
+            minimapaLeaflet = L.map('minimap', {
+                zoomControl: false,
+                attributionControl: false,
+                scrollWheelZoom: false,
+                dragging: false,
+                doubleClickZoom: false,
+                boxZoom: false,
+                keyboard: false
+            }).setView(COORDENADAS_PANORAMAS.imagen1, 18);
+
+            L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                maxZoom: 20
+            }).addTo(minimapaLeaflet);
+
+            const iconoActual = L.divIcon({
+                className: '',
+                html: '<div class="marcador-actual"></div>',
+                iconSize: [28, 28],
+                iconAnchor: [14, 28]
+            });
+
+            minimapaMarker = L.marker(COORDENADAS_PANORAMAS.imagen1, { icon: iconoActual }).addTo(minimapaLeaflet);
+            minimapaMarker.bindPopup('Estás aquí');
+            minimapaLinea = L.polyline([], {
+                color: '#d62828',
+                weight: 4,
+                opacity: 0.8
+            }).addTo(minimapaLeaflet);
+        }
+
+        function updateLeafletMiniMap() {
+            if (!minimapaLeaflet || !minimapaMarker) return;
+            const coords = currentPano && currentPano.id ? (COORDENADAS_PANORAMAS[currentPano.id] || COORDENADAS_PANORAMAS.imagen1) : COORDENADAS_PANORAMAS.imagen1;
+            minimapaMarker.setLatLng(coords);
+            minimapaMarker.bindPopup('Estás en: ' + (currentPano && currentPano.title ? currentPano.title : currentPano.id)).openPopup();
+
+            const idsRuta = [currentPano.id, ...routePath.map(step => step.toId)];
+            const ruta = idsRuta
+                .filter((id, index, lista) => id && lista.indexOf(id) === index)
+                .map(id => COORDENADAS_PANORAMAS[id])
+                .filter(Boolean);
+            if (ruta.length > 1) {
+                minimapaLinea.setLatLngs(ruta);
+            } else {
+                minimapaLinea.setLatLngs([coords, coords]);
+            }
+            minimapaLeaflet.setView(coords, 18, { animate: true });
+        }
+
+        function normalizeHotspot(h) {
+            if (!h) return h;
+            if (!h.targetId && (h.targetImage || h.target)) {
+                h.targetId = h.targetId || h.targetImage || h.target;
+            }
+            h.pitch = Number(h.pitch) || 0;
+            h.yaw = Number(h.yaw) || 0;
+            h.w = Number(h.w) || Number(h.width) || 60;
+            h.h = Number(h.h) || Number(h.height) || 60;
+            h.rotate = Number(h.rotate) || 0;
+            h.tilt = Number(h.tilt) || 0;
+            h.color = h.color || 'white';
+            h.direction = h.direction || 'forward';
+            return h;
+        }
+
+        function normalizePanorama(p) {
+            if (!p) return p;
+            if (!p.hotspots) p.hotspots = [];
+            if (!Array.isArray(p.labels)) p.labels = [];
+            if (!Array.isArray(p.alerts)) p.alerts = [];
+            p.initialYaw = Number.isFinite(Number(p.initialYaw)) ? Number(p.initialYaw) : 0;
+            p.initialPitch = Number.isFinite(Number(p.initialPitch)) ? Number(p.initialPitch) : 0;
+            p.forwardYaw = Number.isFinite(Number(p.forwardYaw)) ? Number(p.forwardYaw) : p.initialYaw;
+            p.forwardPitch = Number.isFinite(Number(p.forwardPitch)) ? Number(p.forwardPitch) : p.initialPitch;
+            p.backwardYaw = Number.isFinite(Number(p.backwardYaw)) ? Number(p.backwardYaw) : p.initialYaw;
+            p.backwardPitch = Number.isFinite(Number(p.backwardPitch)) ? Number(p.backwardPitch) : p.initialPitch;
+            p.leftYaw = Number.isFinite(Number(p.leftYaw)) ? Number(p.leftYaw) : p.initialYaw;
+            p.leftPitch = Number.isFinite(Number(p.leftPitch)) ? Number(p.leftPitch) : p.initialPitch;
+            p.rightYaw = Number.isFinite(Number(p.rightYaw)) ? Number(p.rightYaw) : p.initialYaw;
+            p.rightPitch = Number.isFinite(Number(p.rightPitch)) ? Number(p.rightPitch) : p.initialPitch;
+            p.hotspots = p.hotspots.map(normalizeHotspot);
+            p.labels = p.labels.map(label => ({
+                id: label.id || `label-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                text: label.text || 'Etiqueta',
+                profesor: label.profesor || '',
+                curso: label.curso || '',
+                grado: label.grado || '',
+                salon: label.salon || '',
+                dia: label.dia || '',
+                hora: label.hora || '',
+                horaInicio: label.horaInicio || '',
+                horaFin: label.horaFin || '',
+                descripcion: label.descripcion || '',
+                x: Number(label.x) || 50,
+                y: Number(label.y) || 50,
+                color: label.color || '#ffffff',
+                bg: label.bg || 'rgba(15, 23, 42, 0.75)',
+                fontSize: Number(label.fontSize) || 12
+            }));
+            p.alerts = p.alerts.map(alert => ({
+                id: alert.id || `alert-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                title: alert.title || 'Aviso',
+                description: alert.description || '',
+                alertMode: alert.alertMode || 'full',
+                profesor: alert.profesor || '',
+                curso: alert.curso || '',
+                grado: alert.grado || '',
+                salon: alert.salon || '',
+                dia: alert.dia || '',
+                hora: alert.hora || (alert.horaInicio && alert.horaFin ? `${alert.horaInicio} - ${alert.horaFin}` : alert.horaInicio || alert.horaFin || ''),
+                horaInicio: alert.horaInicio || '',
+                horaFin: alert.horaFin || '',
+                titulo: alert.titulo || '',
+                descripcion: alert.descripcion || '',
+                pitch: Number(alert.pitch) || 0,
+                yaw: Number(alert.yaw) || 0,
+                x: Number(alert.x) || 50,
+                y: Number(alert.y) || 50,
+                color: alert.color || '#22c55e',
+                bg: alert.bg || 'rgba(101, 35, 18, 0.85)',
+                fontSize: Number(alert.fontSize) || 18,
+                markerSize: Number(alert.markerSize) || 70
+            }));
+            return p;
+        }
+
+        function normalizePanoramas(list) {
+            return list.map(normalizePanorama);
+        }
+
+        function ensureAllPanels() {
+            if (!Array.isArray(panoramas) || !panoramas.length) return;
+            const ids = new Set(panoramas.map(p => p.id));
+            for (let panelNumber = 1; panelNumber <= 13; panelNumber++) {
+                const panelId = `imagen${panelNumber}`;
+                if (!ids.has(panelId)) continue;
+            }
+        }
+
+        function updateSaveStatus(text, isBusy = false) {
+            const statusEl = document.getElementById('save-status');
+            if (!statusEl) return;
+            statusEl.textContent = text;
+            statusEl.style.color = isBusy ? '#ffd166' : '#c8f7c5';
+        }
+
+        function openLabelForm() {
+            const form = document.getElementById('label-form-panel');
+            if (form) form.classList.remove('hidden');
+        }
+
+        function closeLabelForm() {
+            alertPlacementMode = false;
+            setLabelFormEditable(true);
+            const form = document.getElementById('label-form-panel');
+            if (form) {
+                form.classList.add('hidden');
+                form.classList.remove('circle-form-mode', 'view-form-mode');
+            }
+            const simpleButton = document.getElementById('btn-add-simple-alert');
+            if (simpleButton) {
+                simpleButton.classList.remove('active');
+                simpleButton.textContent = '❗ Crear nombre simple';
+            }
+        }
+
+        function setAlertFormMode(mode = 'full') {
+            const formPanel = document.getElementById('label-form-panel');
+            const modeSelect = document.getElementById('label-alert-form-mode');
+            const professorLabel = document.getElementById('label-profesor-label');
+            const professorInput = document.getElementById('label-profesor');
+            const descriptionInput = document.getElementById('label-descripcion');
+            const saveBtn = document.getElementById('btn-add-label');
+            const isSimpleMode = mode === 'simple';
+            if (formPanel) {
+                formPanel.classList.toggle('alert-form-simple', isSimpleMode);
+                formPanel.classList.toggle('alert-form-full', !isSimpleMode);
+            }
+            if (modeSelect) modeSelect.value = isSimpleMode ? 'simple' : 'full';
+            if (professorLabel) professorLabel.textContent = isSimpleMode ? 'Nombre del lugar' : 'Profesor';
+            if (professorInput) {
+                professorInput.placeholder = isSimpleMode ? 'Escribe el nombre del lugar' : 'Escribe el profesor';
+                professorInput.title = isSimpleMode ? 'Nombre de la tabla lugares' : 'Profesor';
+            }
+            if (descriptionInput) {
+                descriptionInput.value = '';
+                descriptionInput.closest('label')?.classList.toggle('hidden', isSimpleMode);
+            }
+            if (isSimpleMode) {
+                const input = document.getElementById('label-profesor');
+                const box = document.getElementById('sugerencias-profesores');
+                if (input && box) {
+                    box.innerHTML = '';
+                    cargarSugerenciasNombresLugares();
+                }
+            }
+            if (saveBtn) {
+                saveBtn.textContent = isSimpleMode ? 'Guardar' : 'Guardar + Info';
+            }
+        }
+
+        function prepareInfoForm(mode = 'full') {
+            if (!currentPano || !viewer) {
+                updateSaveStatus('El visor todavía está cargando; inténtalo de nuevo en un momento.', false);
+                return;
+            }
+            selectedLabel = null;
+            selectedCircle = null;
+            const formPanel = document.getElementById('label-form-panel');
+            formPanel.classList.remove('circle-form-mode');
+            formPanel.classList.remove('view-form-mode');
+            formPanel.querySelector('.label-form-header span').textContent = 'Etiqueta';
+            setAlertFormMode(mode);
+            setCurrentCalendarDefaults();
+            const title = document.getElementById('label-titulo');
+            const description = document.getElementById('label-descripcion');
+            const alertChk = document.getElementById('label-is-alert');
+            const pitch = document.getElementById('label-pitch');
+            const yaw = document.getElementById('label-yaw');
+            const color = document.getElementById('label-color');
+            const markerSize = document.getElementById('label-marker-size');
+            const markerSizeValue = document.getElementById('label-marker-size-value');
+            if (alertChk) alertChk.checked = true;
+            if (color) color.value = '#22c55e';
+            if (markerSize) markerSize.value = '70';
+            if (markerSizeValue) markerSizeValue.textContent = '70 px';
+            if (title) title.value = '';
+            if (description) description.value = '';
+            if (pitch) pitch.value = '';
+            if (yaw) yaw.value = '';
+            setLabelFormEditable(true);
+            alertPlacementMode = true;
+            openLabelForm();
+            if (title) title.focus();
+        }
+
+        function setLabelFormEditable(isEditable) {
+            const ids = [
+                'label-profesor', 'label-grado', 'label-salon', 'label-dia', 'label-id-horario',
+                'label-hora-inicio', 'label-hora-fin', 'label-hora', 'label-titulo', 'label-descripcion',
+                'label-pitch', 'label-yaw', 'label-color', 'label-size', 'label-marker-size', 'label-is-alert'
+            ];
+            ids.forEach(id => {
+                const el = document.getElementById(id);
+                if (!el) return;
+                if (el.tagName === 'SELECT' || el.type === 'checkbox') {
+                    el.disabled = !isEditable;
+                } else {
+                    el.readOnly = !isEditable;
+                }
+            });
+            document.querySelectorAll('.weekly-calendar-day').forEach(button => { button.disabled = !isEditable; });
+            const calendarTime = document.getElementById('weekly-calendar-time');
+            if (calendarTime) calendarTime.disabled = !isEditable;
+            const saveBtn = document.getElementById('btn-add-label');
+            if (saveBtn) {
+                saveBtn.disabled = !isEditable;
+                const formMode = document.getElementById('label-alert-form-mode')?.value || 'full';
+                saveBtn.textContent = !isEditable ? 'Solo lectura' : (formMode === 'simple' ? 'Guardar' : 'Guardar + Info');
+            }
+        }
+
+        function setNoClassFormState(isNoClass) {
+            const formPanel = document.getElementById('label-form-panel');
+            if (!formPanel) return;
+            formPanel.classList.toggle('no-class-mode', isNoClass);
+            formPanel.classList.toggle('class-data-mode', false);
+            formPanel.classList.remove('circle-form-mode', 'view-form-mode');
+            const message = document.getElementById('no-class-message');
+            if (message) {
+                message.style.display = isNoClass ? 'flex' : 'none';
+            }
+            const header = formPanel.querySelector('.label-form-header span');
+            if (header) {
+                header.textContent = isNoClass ? 'Datos de la clase' : 'Etiqueta';
+            }
+            if (isNoClass) {
+                setLabelFormEditable(false);
+            }
+        }
+
+        function setClassDataFormState(isClassData) {
+            const formPanel = document.getElementById('label-form-panel');
+            if (!formPanel) return;
+            formPanel.classList.toggle('class-data-mode', isClassData);
+            formPanel.classList.toggle('no-class-mode', false);
+            const header = formPanel.querySelector('.label-form-header span');
+            if (header) {
+                header.textContent = isClassData ? 'Datos de la clase' : 'Etiqueta';
+            }
+            if (isClassData) {
+                setLabelFormEditable(false);
+            }
+        }
+
+        function openLabelEditorFor(label) {
+            if (!label) return;
+            selectedLabel = label;
+            document.getElementById('label-form-panel').classList.remove('view-form-mode');
+            setLabelFormEditable(true);
+            fillLabelFormFromSelection(label);
+            openLabelForm();
+        }
+
+        function openAlertForm(alert) {
+            if (!alert) return;
+            selectedLabel = alert;
+            setLabelFormEditable(false);
+            setAlertFormMode(alert && alert.alertMode === 'simple' ? 'simple' : 'full');
+            const professorInput = document.getElementById('label-profesor');
+            const cursoInput = document.getElementById('label-curso');
+            const gradoInput = document.getElementById('label-grado');
+            const salonInput = document.getElementById('label-salon');
+            const diaInput = document.getElementById('label-dia');
+            const horaInicioInput = document.getElementById('label-hora-inicio');
+            const horaFinInput = document.getElementById('label-hora-fin');
+            const horaInput = document.getElementById('label-hora');
+            const tituloInput = document.getElementById('label-titulo');
+            const descripcionInput = document.getElementById('label-descripcion');
+            const colorInput = document.getElementById('label-color');
+            const sizeInput = document.getElementById('label-size');
+            const markerSizeInput = document.getElementById('label-marker-size');
+            const markerSizeValue = document.getElementById('label-marker-size-value');
+            const alertChk = document.getElementById('label-is-alert');
+
+            if (professorInput) professorInput.value = alert.profesor || '';
+            if (cursoInput) cursoInput.value = alert.curso || '';
+            if (gradoInput) gradoInput.value = alert.grado || '';
+            if (salonInput) salonInput.value = alert.salon || '';
+            if (diaInput) diaInput.value = alert.dia || '';
+            if (horaInicioInput) horaInicioInput.value = alert.horaInicio || '';
+            if (horaFinInput) horaFinInput.value = alert.horaFin || '';
+            if (horaInput) horaInput.value = alert.hora || (alert.horaInicio && alert.horaFin ? `${alert.horaInicio} - ${alert.horaFin}` : '');
+            if (tituloInput) tituloInput.value = alert.titulo || alert.title || '';
+            if (descripcionInput) descripcionInput.value = alert.descripcion || alert.description || '';
+            if (colorInput) colorInput.value = alert.color || '#22c55e';
+            if (sizeInput) sizeInput.value = String(alert.fontSize || 18);
+            if (markerSizeInput) markerSizeInput.value = String(alert.markerSize || 70);
+            if (markerSizeValue) markerSizeValue.textContent = `${alert.markerSize || 70} px`;
+            if (alertChk) alertChk.checked = true;
+            openLabelForm();
+        }
+
+        function addAlertAtPosition(pitch, yaw) {
+            if (!currentPano || !viewer) return;
+            const pitchInput = document.getElementById('label-pitch');
+            const yawInput = document.getElementById('label-yaw');
+            if (pitchInput) pitchInput.value = String(Number(pitch) || 0);
+            if (yawInput) yawInput.value = String(Number(yaw) || 0);
+            addLabelFromForm();
+        }
+
+        function buildLabelText(label) {
+            const explicitName = String(label?.title || label?.titulo || label?.text || '').trim();
+            if (explicitName) return explicitName;
+
+            if (label && (label.alertMode === 'simple' || label.type === 'simple-alert')) {
+                return String(label.profesor || 'Lugar').trim() || 'Lugar';
+            }
+
+            const fallback = String(label?.profesor || label?.text || 'Lugar').trim();
+            return fallback || 'Lugar';
+        }
+
+        function fillLabelFormFromSelection(label) {
+            if (!label) return;
+            const professorInput = document.getElementById('label-profesor');
+            const cursoInput = document.getElementById('label-curso');
+            const gradoInput = document.getElementById('label-grado');
+            const salonInput = document.getElementById('label-salon');
+            const diaInput = document.getElementById('label-dia');
+            const horaInput = document.getElementById('label-hora');
+            const horaInicioInput = document.getElementById('label-hora-inicio');
+            const horaFinInput = document.getElementById('label-hora-fin');
+            const titleInput = document.getElementById('label-titulo');
+            const descriptionInput = document.getElementById('label-descripcion');
+            const colorInput = document.getElementById('label-color');
+            const sizeInput = document.getElementById('label-size');
+            const sizeValue = document.getElementById('label-size-value');
+
+            if (professorInput) professorInput.value = label.profesor || '';
+            if (cursoInput) cursoInput.value = label.curso || '';
+            if (gradoInput) gradoInput.value = label.grado || '';
+            if (salonInput) salonInput.value = label.salon || '';
+            if (diaInput) diaInput.value = label.dia || '';
+            if (horaInput) horaInput.value = label.hora || '';
+            if (horaInicioInput) horaInicioInput.value = label.horaInicio || (label.hora || '').split(' - ')[0] || '';
+            if (horaFinInput) horaFinInput.value = label.horaFin || (label.hora || '').split(' - ')[1] || '';
+            if (titleInput) titleInput.value = label.titulo || label.text || '';
+            if (descriptionInput) descriptionInput.value = label.descripcion || '';
+            if (colorInput) colorInput.value = label.color || '#ffffff';
+            if (sizeInput) sizeInput.value = String(label.fontSize || 12);
+            if (sizeValue) sizeValue.textContent = `${label.fontSize || 12} px`;
+        }
+
+        function renderLabels() {
+            const viewerWrap = document.getElementById('viewer-wrapper');
+            if (!viewerWrap) return;
+            const existing = viewerWrap.querySelectorAll('.viewer-label');
+            existing.forEach(node => node.remove());
+
+            (currentPano.labels || []).forEach((label) => {
+                const node = document.createElement('div');
+                node.className = 'viewer-label' + (selectedLabel === label ? ' selected' : '');
+                const labelText = buildLabelText(label);
+                node.title = labelText;
+                node.style.left = `${label.x}%`;
+                node.style.top = `${label.y}%`;
+                node.style.color = label.color || '#ffffff';
+                node.style.background = label.bg || 'rgba(15, 23, 42, 0.75)';
+                node.style.fontSize = `${label.fontSize || 12}px`;
+
+                const textNode = document.createElement('span');
+                textNode.textContent = labelText;
+                const deleteBtn = document.createElement('button');
+                deleteBtn.type = 'button';
+                deleteBtn.className = 'viewer-label-delete';
+                deleteBtn.setAttribute('aria-label', 'Eliminar etiqueta');
+                deleteBtn.textContent = '×';
+
+                deleteBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    currentPano.labels = currentPano.labels.filter(item => item.id !== label.id);
+                    renderLabels();
+                    markDirty();
+                };
+
+                node.onclick = (e) => {
+                    if (e.target.closest('.viewer-label-delete')) return;
+                    if (!isEdit) return;
+                    document.querySelectorAll('.viewer-label').forEach(item => item.classList.remove('selected'));
+                    node.classList.add('selected');
+                    selectedHS = null;
+                    selectedCircle = null;
+                    selectedLabel = label;
+                    fillLabelFormFromSelection(label);
+                    openLabelEditorFor(label);
+                };
+
+                node.onpointerdown = (e) => {
+                    if (!isEdit || e.target.closest('.viewer-label-delete')) return;
+                    labelDragState = { id: label.id, startX: e.clientX, startY: e.clientY, originalX: label.x, originalY: label.y };
+                    node.setPointerCapture?.(e.pointerId);
+                };
+
+                node.appendChild(textNode);
+                node.appendChild(deleteBtn);
+                viewerWrap.appendChild(node);
+            });
+        }
+
+        function setWeeklyCalendar(day, time) {
+            const dayInput = document.getElementById('label-dia');
+            const timeInput = document.getElementById('weekly-calendar-time');
+            const startTimeInput = document.getElementById('label-hora-inicio');
+            calendarioDia = day || calendarioDia;
+            calendarioHora = time || calendarioHora;
+            if (dayInput && day) dayInput.value = day;
+            if (timeInput && time) timeInput.value = time;
+            if (startTimeInput && time) startTimeInput.value = time;
+            document.querySelectorAll('.weekly-calendar-day').forEach(button => button.classList.toggle('active', button.dataset.day === day));
+            if (selectedCircle) actualizarHorarioDelMarcador(selectedCircle);
+        }
+
+        function horarioEnMinutos(value) {
+            const parts = String(value || '').slice(0, 5).split(':').map(Number);
+            return parts.length === 2 && parts.every(Number.isFinite) ? parts[0] * 60 + parts[1] : -1;
+        }
+
+        function diaNormalizado(value) {
+            return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+        }
+
+        function profesorTieneClasesRestantes(profesor, dia = calendarioDia, hora = calendarioHora) {
+            const nombre = String(profesor || '').trim().toLowerCase();
+            if (!nombre) return false;
+            const ahora = horarioEnMinutos(hora);
+            if (ahora < 0) return false;
+            const horariosDelDia = horariosColegio.filter(item => {
+                return String(item.profesor || '').trim().toLowerCase() === nombre
+                    && diaNormalizado(item.dia) === diaNormalizado(dia);
+            });
+            if (!horariosDelDia.length) return false;
+            return horariosDelDia.some(item => {
+                const fin = horarioEnMinutos(item.hora_fin);
+                return fin > ahora;
+            });
+        }
+
+        function actualizarHorarioDelMarcador(marker) {
+            if (!marker || !calendarioDia || !calendarioHora || !horariosColegio.length) return;
+            const markerRoom = String(marker.salon || '').trim().toLowerCase();
+            if (!markerRoom) return;
+            const selectedMinutes = horarioEnMinutos(calendarioHora);
+            const horario = horariosColegio.find(item => {
+                const start = horarioEnMinutos(item.hora_inicio);
+                const end = horarioEnMinutos(item.hora_fin);
+                return String(item.salon || '').trim().toLowerCase() === markerRoom
+                    && diaNormalizado(item.dia) === diaNormalizado(calendarioDia)
+                    && selectedMinutes >= start && selectedMinutes < end;
+            });
+            const set = (id, value) => { const input = document.getElementById(id); if (input) input.value = value || ''; };
+            if (!horario) {
+                const profesorActual = String(document.getElementById('label-profesor')?.value || selectedCircle?.profesor || '').trim();
+                if (profesorActual && profesorTieneClasesRestantes(profesorActual, calendarioDia, calendarioHora)) {
+                    setNoClassFormState(true);
+                    set('label-profesor', `${profesorActual} está en descanso`);
+                    set('label-curso', '');
+                    set('label-grado', '');
+                    set('label-id-horario', '');
+                    set('label-hora-inicio', '');
+                    set('label-hora-fin', '');
+                    set('label-dia', calendarioDia);
+                    set('weekly-calendar-time', calendarioHora);
+                    return;
+                }
+                setNoClassFormState(true);
+                set('label-profesor', 'NO HAY CLASE POR EL MOMENTO');
+                set('label-curso', '');
+                set('label-grado', '');
+                set('label-id-horario', '');
+                set('label-hora-inicio', '');
+                set('label-hora-fin', '');
+                set('label-dia', calendarioDia);
+                set('weekly-calendar-time', calendarioHora);
+                return;
+            }
+            setNoClassFormState(false);
+            setClassDataFormState(true);
+            const day = horario.dia === 'Miercoles' ? 'Miércoles' : horario.dia;
+            set('label-profesor', horario.profesor);
+            set('label-curso', horario.curso);
+            set('label-grado', horario.grado);
+            set('label-salon', horario.salon);
+            set('label-dia', day);
+            set('label-id-horario', horario.id_horario);
+            set('label-hora-inicio', String(horario.hora_inicio || '').slice(0, 5));
+            set('label-hora-fin', String(horario.hora_fin || '').slice(0, 5));
+            document.querySelectorAll('.weekly-calendar-day').forEach(button => button.classList.toggle('active', button.dataset.day === day));
+        }
+
+        function setCurrentCalendarDefaults() {
+            const days = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+            const now = new Date();
+            const time = `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
+            setWeeklyCalendar(days[now.getDay()], time);
+        }
+
+        function openAlertPopup(alert) {
+            if (!alert) return;
+            selectedHS = null;
+            selectedLabel = alert;
+            selectedCircle = null;
+            document.getElementById('label-form-panel').classList.add('view-form-mode');
+            setAlertFormMode(alert && alert.alertMode === 'simple' ? 'simple' : 'full');
+            setLabelFormEditable(false);
+            const professorInput = document.getElementById('label-profesor');
+            const cursoInput = document.getElementById('label-curso');
+            const gradoInput = document.getElementById('label-grado');
+            const salonInput = document.getElementById('label-salon');
+            const diaInput = document.getElementById('label-dia');
+            const horaInicioInput = document.getElementById('label-hora-inicio');
+            const horaFinInput = document.getElementById('label-hora-fin');
+            const horaInput = document.getElementById('label-hora');
+            const tituloInput = document.getElementById('label-titulo');
+            const descripcionInput = document.getElementById('label-descripcion');
+            const colorInput = document.getElementById('label-color');
+            const sizeInput = document.getElementById('label-size');
+            const markerSizeInput = document.getElementById('label-marker-size');
+            const markerSizeValue = document.getElementById('label-marker-size-value');
+            const alertChk = document.getElementById('label-is-alert');
+
+            if (professorInput) professorInput.value = alert.profesor || '';
+            if (cursoInput) cursoInput.value = alert.curso || '';
+            if (gradoInput) gradoInput.value = alert.grado || '';
+            if (salonInput) salonInput.value = alert.salon || '';
+            if (diaInput) diaInput.value = alert.dia || '';
+            if (horaInicioInput) horaInicioInput.value = alert.horaInicio || '';
+            if (horaFinInput) horaFinInput.value = alert.horaFin || '';
+            if (horaInput) horaInput.value = alert.hora || (alert.horaInicio && alert.horaFin ? `${alert.horaInicio} - ${alert.horaFin}` : '');
+            if (tituloInput) tituloInput.value = alert.titulo || alert.title || '';
+            if (descripcionInput) descripcionInput.value = alert.descripcion || alert.description || '';
+            if (colorInput) colorInput.value = alert.color || '#22c55e';
+            if (sizeInput) sizeInput.value = String(alert.fontSize || 18);
+            if (markerSizeInput) markerSizeInput.value = String(alert.markerSize || 70);
+            if (markerSizeValue) markerSizeValue.textContent = `${alert.markerSize || 70} px`;
+            if (alertChk) alertChk.checked = true;
+            openLabelForm();
+        }
+
+        function renderAlerts() {
+            const viewerWrap = document.getElementById('viewer-wrapper');
+            if (!viewerWrap) return;
+
+            if (viewer && viewer.getConfig) {
+                const configHotspots = viewer.getConfig().hotSpots || [];
+                configHotspots.forEach(h => {
+                    if (String(h.id || '').startsWith('alert-')) viewer.removeHotSpot(h.id);
+                });
+            }
+
+            (currentPano.alerts || []).forEach((alert) => {
+                if (!viewer || !viewer.addHotSpot) return;
+                const pitch = Number.isFinite(Number(alert.pitch)) ? Number(alert.pitch) : Number(alert.y) || 0;
+                const yaw = Number.isFinite(Number(alert.yaw)) ? Number(alert.yaw) : Number(alert.x) || 0;
+                viewer.addHotSpot({
+                    id: `alert-${alert.id}`,
+                    pitch,
+                    yaw,
+                    cssClass: 'custom-alert',
+                    // Estas coordenadas pertenecen a la esfera 360, no a la pantalla.
+                    // Por eso el aviso gira y desaparece de la vista al cambiar el yaw/pitch.
+                    createTooltipFunc: (el) => {
+                        const markerSize = Number(alert.markerSize) || 70;
+                        const fontSize = Number(alert.fontSize) || 18;
+                        el.dataset.alertId = alert.id;
+                        el.dataset.pitch = String(pitch);
+                        el.dataset.yaw = String(yaw);
+                        el.innerHTML = '<span>+</span><span class="info-marker-label">Info</span>';
+                        el.title = alert.title || 'Aviso';
+                        el.style.cursor = 'pointer';
+                        el.style.display = 'flex';
+                        el.style.alignItems = 'center';
+                        el.style.justifyContent = 'center';
+                        el.style.setProperty('width', `${markerSize}px`, 'important');
+                        el.style.setProperty('height', `${markerSize}px`, 'important');
+                        el.style.setProperty('font-size', `${fontSize}px`, 'important');
+                        el.style.setProperty('background', alert.color || '#22c55e', 'important');
+                        el.onpointerdown = (e) => {
+                            if (!isEdit || e.button !== 0) return;
+                            e.preventDefault();
+                            e.stopPropagation();
+                            el.setPointerCapture?.(e.pointerId);
+                            el.classList.add('is-dragging');
+                            draggingAlert = {
+                                id: alert.id,
+                                pointerId: e.pointerId,
+                                moved: false,
+                                element: el,
+                                lastClientX: e.clientX,
+                                lastClientY: e.clientY,
+                                lastCoords: null
+                            };
+                            suppressAlertClick = false;
+                            selectedLabel = alert;
+                        };
+                        el.onpointerup = (e) => {
+                            if (draggingAlert?.id !== alert.id) return;
+                            el.releasePointerCapture?.(e.pointerId);
+                            el.classList.remove('is-dragging');
+                        };
+                        el.onclick = (e) => {
+                            if (suppressAlertClick) {
+                                suppressAlertClick = false;
+                                e.preventDefault();
+                                e.stopPropagation();
+                                return;
+                            }
+                            e.preventDefault();
+                            e.stopPropagation();
+                            openAlertPopup(alert);
+                        };
+                    },
+                    clickHandlerFunc: () => {
+                        if (suppressAlertClick) {
+                            suppressAlertClick = false;
+                            return;
+                        }
+                        openAlertPopup(alert);
+                    }
+                });
+            });
+
+            const alertsList = document.getElementById('alerts-list');
+            if (!alertsList) return;
+            alertsList.innerHTML = '';
+            if (!currentPano.alerts || !currentPano.alerts.length) {
+                const empty = document.createElement('div');
+                empty.style.opacity = '0.7';
+                empty.style.fontSize = '11px';
+                empty.style.color = '#d1d5db';
+                empty.textContent = 'Sin puntos + Info';
+                alertsList.appendChild(empty);
+                return;
+            }
+
+            currentPano.alerts.forEach((alert) => {
+                const row = document.createElement('div');
+                row.style.display = 'flex';
+                row.style.alignItems = 'center';
+                row.style.gap = '8px';
+
+                const item = document.createElement('button');
+                item.type = 'button';
+                item.className = 'alert-menu-item';
+                item.innerHTML = `<span>${(alert.title || 'Aviso').replace(/[&<>"']/g, ch => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;','\'':'&#039;'}[ch]))}</span>`;
+                item.onclick = () => openAlertPopup(alert);
+
+                const removeBtn = document.createElement('button');
+                removeBtn.type = 'button';
+                removeBtn.className = 'alert-menu-delete';
+                removeBtn.textContent = '×';
+                removeBtn.title = 'Eliminar aviso';
+                removeBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    currentPano.alerts = (currentPano.alerts || []).filter(item => item.id !== alert.id);
+                    const popup = document.getElementById('alert-popup');
+                    if (popup) popup.classList.remove('visible');
+                    renderAlerts();
+                    markDirty();
+                };
+
+                row.appendChild(item);
+                row.appendChild(removeBtn);
+                alertsList.appendChild(row);
+            });
+        }
+
+        function getSelectedViewerObject() {
+            if (selectedHS && currentPano?.hotspots?.includes(selectedHS)) return { type: 'hotspot', item: selectedHS };
+            if (selectedLabel && currentPano?.alerts?.includes(selectedLabel)) return { type: 'alert', item: selectedLabel };
+            if (selectedLabel && currentPano?.labels?.includes(selectedLabel)) return { type: 'label', item: selectedLabel };
+            return null;
+        }
+
+        function copySelectedViewerObject() {
+            if (!isEdit) return false;
+            const selected = getSelectedViewerObject();
+            if (!selected) return false;
+            viewerObjectClipboard = { type: selected.type, item: JSON.parse(JSON.stringify(selected.item)) };
+            updateSaveStatus('Objeto copiado. Pégalo en este panorama o en otro.', false);
+            return true;
+        }
+
+        function pasteViewerObject() {
+            if (!isEdit || !currentPano || !viewerObjectClipboard) return false;
+            const copy = JSON.parse(JSON.stringify(viewerObjectClipboard.item));
+            const uniqueId = `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+
+            if (viewerObjectClipboard.type === 'hotspot') {
+                copy.sourceImage = currentPano.id;
+                currentPano.hotspots = currentPano.hotspots || [];
+                currentPano.hotspots.push(copy);
+                selectedHS = copy;
+                selectedCircle = ['circle', 'exclamation', 'simple-alert'].includes(copy.type) ? copy : null;
+                selectedLabel = null;
+                renderHS();
+                syncMenu();
+            } else if (viewerObjectClipboard.type === 'alert') {
+                copy.id = `alert-copy-${uniqueId}`;
+                copy.sourceImage = currentPano.id;
+                currentPano.alerts = currentPano.alerts || [];
+                currentPano.alerts.push(copy);
+                selectedHS = null;
+                selectedCircle = null;
+                selectedLabel = copy;
+                renderAlerts();
+            } else {
+                copy.id = `label-copy-${uniqueId}`;
+                currentPano.labels = currentPano.labels || [];
+                currentPano.labels.push(copy);
+                selectedHS = null;
+                selectedCircle = null;
+                selectedLabel = copy;
+                renderLabels();
+            }
+
+            markDirty();
+            return true;
+        }
+
+        async function guardarCambiosInmediatos(mensaje) {
+            try {
+                const copia = JSON.parse(JSON.stringify(panoramas));
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(copia));
+                localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(copia));
+                updateSaveStatus(mensaje || 'Guardado correctamente.', false);
+                const formStatus = document.getElementById('alert-save-status');
+                if (formStatus) formStatus.textContent = mensaje || 'Guardado correctamente.';
+                return true;
+            } catch (error) {
+                console.error('Error al guardar el signo de exclamación:', error);
+                updateSaveStatus('No se pudo guardar: ' + error.message, false);
+                alert('No se pudo guardar el signo de exclamación.');
+                return false;
+            }
+        }
+
+        async function addLabelFromForm() {
+            const formModeSelect = document.getElementById('label-alert-form-mode');
+            const alertMode = formModeSelect ? formModeSelect.value : 'full';
+            const camposObligatorios = [
+                ['label-profesor', 'Profesor'],
+                ['label-curso', 'Curso / materia'],
+                ['label-grado', 'Grado'],
+                ['label-salon', 'Salón'],
+                ['label-dia', 'Día'],
+                ['label-hora-inicio', 'Hora inicio'],
+                ['label-hora-fin', 'Hora finaliza']
+            ];
+            const camposVacios = camposObligatorios.filter(([id]) => {
+                const input = document.getElementById(id);
+                return !input || !String(input.value || '').trim();
+            });
+            if (camposVacios.length > 0) {
+                alert(`Campos obligatorios, rellénelos: ${camposVacios.map(([, nombre]) => nombre).join(', ')}.`);
+                const primerCampo = document.getElementById(camposVacios[0][0]);
+                if (primerCampo) primerCampo.focus();
+                return;
+            }
+            const isSimpleAlertMode = alertMode === 'simple';
+            const profesor = document.getElementById('label-profesor').value.trim();
+            const curso = document.getElementById('label-curso')?.value.trim() || '';
+            const grado = document.getElementById('label-grado').value.trim();
+            const salon = document.getElementById('label-salon').value.trim();
+            const dia = document.getElementById('label-dia').value || '';
+            const horaInicioInput = document.getElementById('label-hora-inicio');
+            const horaFinInput = document.getElementById('label-hora-fin');
+            const horaInicio = horaInicioInput ? horaInicioInput.value || '' : '';
+            const horaFin = horaFinInput ? horaFinInput.value || '' : '';
+            const hora = horaInicio && horaFin ? `${horaInicio} - ${horaFin}` : horaInicio || horaFin || '';
+            const titulo = document.getElementById('label-titulo').value.trim();
+            const descripcion = isSimpleAlertMode ? '' : document.getElementById('label-descripcion').value.trim();
+            const color = document.getElementById('label-color').value || '#22c55e';
+            if (!currentPano || !viewer) {
+                updateSaveStatus('El visor todavía está cargando; no se pudo colocar el punto.', false);
+                return;
+            }
+            const pitchInput = document.getElementById('label-pitch');
+            const yawInput = document.getElementById('label-yaw');
+            const pitchValue = Number(pitchInput && pitchInput.value);
+            const yawValue = Number(yawInput && yawInput.value);
+            const centerYaw = Number((viewer.getYaw && viewer.getYaw()) || 0);
+            const centerPitch = Number((viewer.getPitch && viewer.getPitch()) || 0);
+            const pitch = Number.isFinite(pitchValue) ? pitchValue : centerPitch;
+            const yaw = Number.isFinite(yawValue) ? yawValue : centerYaw;
+            const x = 50;
+            const y = 50;
+            const background = 'rgba(15, 23, 42, 0.75)';
+            const isAlert = true;
+
+            if (selectedCircle) {
+                selectedCircle.profesor = profesor;
+                selectedCircle.curso = curso;
+                selectedCircle.grado = grado;
+                selectedCircle.salon = salon;
+                selectedCircle.dia = dia;
+                selectedCircle.hora = hora;
+                selectedCircle.idHorario = document.getElementById('label-id-horario')?.value || '';
+                selectedCircle.horaInicio = horaInicio;
+                selectedCircle.horaFin = horaFin;
+                selectedCircle.titulo = titulo;
+                selectedCircle.descripcion = descripcion;
+                selectedCircle.title = titulo || profesor || selectedCircle.title || 'Aviso importante';
+                selectedCircle.description = descripcion || [curso, profesor, grado, salon ? `Salón ${salon}` : '', dia, horaInicio && horaFin ? `${horaInicio} - ${horaFin}` : hora].filter(Boolean).join(' · ');
+                selectedCircle.alertMode = alertMode;
+                selectedCircle.color = color || selectedCircle.color || (selectedCircle.type === 'circle' ? 'green' : 'yellow');
+                selectedCircle.fontSize = Number(document.getElementById('label-size').value || selectedCircle.fontSize || 18);
+                selectedCircle.markerSize = Number(document.getElementById('label-marker-size').value || selectedCircle.markerSize || 70);
+
+                const isPlaceMarker = ['exclamation', 'simple-alert'].includes(selectedCircle.type);
+                const markerName = (profesor || titulo || '').trim();
+                if (isPlaceMarker && markerName) {
+                    const saveFn = typeof window.guardarLugarEnBaseDeDatos === 'function' ? window.guardarLugarEnBaseDeDatos : null;
+                    if (saveFn) {
+                        const ok = await saveFn();
+                        if (!ok) return;
+                    }
+                }
+
+                renderHS();
+                const guardado = await guardarCambiosInmediatos('El signo de exclamación se actualizó correctamente.');
+                if (!guardado) return;
+                selectedCircle = null;
+                closeLabelForm();
+                alert('El signo de exclamación se guardó correctamente.');
+                return;
+            }
+
+            if (isSimpleAlertMode) {
+                const nombreSimple = profesor.trim();
+                if (!nombreSimple) {
+                    alert('Escribe un nombre para guardar el lugar simple.');
+                    return;
+                }
+                if (typeof window.guardarLugarEnBaseDeDatos === 'function') {
+                    const ok = await window.guardarLugarEnBaseDeDatos();
+                    if (!ok) return;
+                }
+                alertPlacementMode = false;
+                closeLabelForm();
+                alert('La información del signo de exclamación se guardó correctamente.');
+                return;
+            }
+
+            if (isAlert) {
+                const alertTitle = titulo || profesor || 'Aviso importante';
+                const alertDescription = [curso, profesor, grado, salon ? `Salón ${salon}` : '', dia, horaInicio && horaFin ? `${horaInicio} - ${horaFin}` : hora, descripcion].filter(Boolean).join(' · ');
+                if (!alertTitle && !alertDescription) {
+                    alert('Selecciona un horario o completa al menos un dato del punto + Info.');
+                    return;
+                }
+                if (typeof window.guardarLugarEnBaseDeDatos === 'function') {
+                    const ok = await window.guardarLugarEnBaseDeDatos();
+                    if (!ok) return;
+                }
+                currentPano.alerts = currentPano.alerts || [];
+                currentPano.alerts.push({
+                    id: `alert-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                    title: alertTitle,
+                    description: alertDescription || 'Sin información adicional.',
+                    alertMode,
+                    profesor: profesor,
+                    curso: curso,
+                    grado: grado,
+                    salon: salon,
+                    dia: dia,
+                    hora: hora,
+                    horaInicio: horaInicio,
+                    horaFin: horaFin,
+                    titulo: titulo,
+                    descripcion: descripcion,
+                    pitch,
+                    yaw,
+                    x,
+                    y,
+                    color,
+                    fontSize: Number(document.getElementById('label-size').value || 18),
+                    markerSize: Number(document.getElementById('label-marker-size').value || 70),
+                    bg: 'rgba(101, 35, 18, 0.85)'
+                });
+                renderAlerts();
+                const guardado = await guardarCambiosInmediatos('El signo de exclamación se guardó correctamente.');
+                if (!guardado) return;
+                alertPlacementMode = false;
+                closeLabelForm();
+                alert('El signo de exclamación se guardó correctamente.');
+                return;
+            }
+
+            if (typeof window.guardarLugarEnBaseDeDatos === 'function') {
+                const ok = await window.guardarLugarEnBaseDeDatos();
+                if (!ok) return;
+            }
+
+            const fontSize = Number(document.getElementById('label-size').value || 12);
+            currentPano.labels = currentPano.labels || [];
+            const labelText = isSimpleAlertMode ? (profesor || titulo || 'Lugar') : `${profesor || titulo || 'Lugar'}${grado ? ` · ${grado}` : ''}${salon ? ` · Salón ${salon}` : ''}${dia ? ` · ${dia}` : ''}${horaInicio && horaFin ? ` · ${horaInicio} - ${horaFin}` : hora ? ` · ${hora}` : ''}`;
+            currentPano.labels.push({
+                id: `label-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                text: labelText,
+                profesor,
+                grado,
+                salon,
+                dia,
+                hora,
+                horaInicio,
+                horaFin,
+                titulo,
+                descripcion,
+                x,
+                y,
+                color,
+                bg: background,
+                fontSize
+            });
+            renderLabels();
+            markDirty();
+            closeLabelForm();
+        }
+
+        function clampNumber(value, min, max) {
+            if (!Number.isFinite(value)) return min;
+            return Math.min(max, Math.max(min, value));
+        }
+
+        function markDirty() {
+            if (saveTimer) clearTimeout(saveTimer);
+            try {
+                localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(panoramas));
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(panoramas));
+            } catch (e) {
+                console.warn('No se pudo guardar la copia pendiente', e);
+            }
+            updateSaveStatus('Guardando cambios...', true);
+            saveTimer = setTimeout(() => savePanoramas({ showConfirm: false, silent: true }), SAVE_DELAY_MS);
+        }
+
+        // Cargar primero la versión del servidor y usar localStorage como respaldo sin conexión.
+        async function loadPanoramas() {
+            const datasetCandidates = [
+                'data/colegio_santander.json',
+                'data/panoramas.json'
+            ];
+
+            let loadedFromFile = false;
+
+            for (const filePath of datasetCandidates) {
+                try {
+                    const res = await fetch(filePath, { cache: 'no-store' });
+                    if (!res.ok) continue;
+                    const data = await res.json();
+                    if (Array.isArray(data)) {
+                        panoramas = normalizePanoramas(data);
+                        loadedFromFile = true;
+                        break;
+                    }
+                    if (data && Array.isArray(data.panoramas)) {
+                        panoramas = normalizePanoramas(data.panoramas);
+                        loadedFromFile = true;
+                        break;
+                    }
+                } catch (e) {
+                    console.warn(`No se pudo cargar ${filePath}`, e);
+                }
+            }
+
+            if (!loadedFromFile) {
+                console.log('No se cargó la base de datos colegio_santander ni el archivo local; se intentará usar el guardado local');
+                try {
+                    const saved = localStorage.getItem(STORAGE_KEY);
+                    if (saved) {
+                        const parsed = JSON.parse(saved);
+                        if (Array.isArray(parsed) && parsed.length) {
+                            panoramas = normalizePanoramas(parsed);
+                        }
+                    }
+                } catch (localError) {
+                    console.warn('No se pudo leer el guardado local', localError);
+                }
+            }
+
+            if (!Array.isArray(panoramas) || !panoramas.length) {
+                console.warn('No hay dataset real cargado para colegio_santander.');
+            }
+            try {
+                const pending = localStorage.getItem(PENDING_STORAGE_KEY);
+                if (pending) {
+                    const parsedPending = JSON.parse(pending);
+                    if (Array.isArray(parsedPending) && parsedPending.length) {
+                        panoramas = normalizePanoramas(parsedPending);
+                    }
+                }
+            } catch (e) {
+                console.warn('No se pudo recuperar la copia pendiente', e);
+            }
+            panoramas = panoramas.filter(p => {
+                const path = String(p?.path || '');
+                return !/^images\//i.test(path) && !/^imagenes del colegio\//i.test(path);
+            });
+            ensureAllPanels();
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(panoramas));
+            } catch (e) {
+                console.warn('No se pudo guardar la copia local inicial', e);
+            }
+        }
+
+        async function loadImageCatalog() {
+            try {
+                const response = await fetch('api.php?action=imagenes', { cache: 'no-store' });
+                if (!response.ok) throw new Error('No se pudo consultar la carpeta de imágenes');
+                const payload = await response.json();
+                const images = Array.isArray(payload.items) ? payload.items : [];
+                const panoramasByPath = new Map(panoramas.map(p => [p.path, p]));
+
+                images.forEach((image, index) => {
+                    const catalogId = `foto-catalogo-${String(index + 1).padStart(4, '0')}`;
+                    const existing = panoramasByPath.get(image.path) || panoramas.find(p => p.path === image.path);
+                    if (existing) {
+                        existing.path = image.path;
+                        existing.title = `${image.folder} / ${image.title}`;
+                        return;
+                    }
+                    panoramas.push({
+                        id: catalogId,
+                        title: `${image.folder} / ${image.title}`,
+                        path: image.path,
+                        hotspots: [],
+                        initialYaw: 0,
+                        initialPitch: 0,
+                        forwardYaw: 0,
+                        forwardPitch: 0,
+                        backwardYaw: 0,
+                        backwardPitch: 0,
+                        leftYaw: 0,
+                        leftPitch: 0,
+                        rightYaw: 0,
+                        rightPitch: 0
+                    });
+                });
+
+                const status = document.getElementById('image-catalog-status');
+                if (status) status.textContent = `${images.length} fotos encontradas en imagenes_del_colegio`;
+            } catch (error) {
+                console.warn('No se pudo cargar el catálogo de imágenes', error);
+                const status = document.getElementById('image-catalog-status');
+                if (status) status.textContent = 'No se pudo leer la carpeta de imágenes';
+            }
+        }
+
+        function populateImageSelectors() {
+            const folderSelect = document.getElementById('select-image-folder');
+            const currentSelect = document.getElementById('select-current-image');
+            const targetFolderSelect = document.getElementById('select-target-folder');
+            const targetSelect = document.getElementById('select-target');
+            const catalogPanoramas = panoramas.filter(p => /^imagenes_del_colegio\//i.test(p.path || ''));
+            const folders = [...new Set(catalogPanoramas
+                .map(p => (p.path || '').split('/')[1])
+                .filter(Boolean))]
+                .sort((a, b) => a.localeCompare(b, 'es'));
+
+            if (folderSelect) {
+                const previousFolder = folderSelect.value;
+                folderSelect.innerHTML = '<option value="">Todas las carpetas</option>' + folders
+                    .map(folder => `<option value="${folder}">${folder}</option>`)
+                    .join('');
+                if (folders.includes(previousFolder)) folderSelect.value = previousFolder;
+            }
+
+            const renderCurrentImages = () => {
+                const selectedFolder = folderSelect?.value || '';
+                const folderImages = selectedFolder
+                    ? catalogPanoramas.filter(p => (p.path || '').split('/')[1] === selectedFolder)
+                    : catalogPanoramas;
+                const items = selectedFolder ? folderImages : panoramas;
+                currentSelect.innerHTML = items.map(p => `<option value="${p.id}">${p.title}</option>`).join('');
+                if (items.some(p => p.id === currentPano?.id)) currentSelect.value = currentPano.id;
+            };
+
+            if (currentSelect) {
+                renderCurrentImages();
+                currentSelect.value = currentPano.id;
+                currentSelect.onchange = () => {
+                    const selected = panoramas.find(p => p.id === currentSelect.value);
+                    if (!selected) return;
+                    currentPano = selected;
+                    selectedHS = null;
+                    init();
+                    updateSourceLabel();
+                };
+            }
+            if (folderSelect) folderSelect.onchange = renderCurrentImages;
+
+            const renderTargetImages = () => {
+                const selectedFolder = targetFolderSelect?.value || '';
+                const items = selectedFolder
+                    ? catalogPanoramas.filter(p => (p.path || '').split('/')[1] === selectedFolder)
+                    : panoramas;
+                const selectedTarget = targetSelect.value;
+                targetSelect.innerHTML = items.map(p => `<option value="${p.id}">${p.title}</option>`).join('');
+                if (items.some(p => p.id === selectedTarget)) targetSelect.value = selectedTarget;
+            };
+
+            if (targetFolderSelect) {
+                const previousFolder = targetFolderSelect.value;
+                targetFolderSelect.innerHTML = '<option value="">Todas las carpetas</option>' + folders
+                    .map(folder => `<option value="${folder}">${folder}</option>`)
+                    .join('');
+                if (folders.includes(previousFolder)) targetFolderSelect.value = previousFolder;
+                targetFolderSelect.onchange = renderTargetImages;
+            }
+
+            if (targetSelect) {
+                renderTargetImages();
+            }
+        }
+
+        function saveStartImage() {
+            if (!currentPano) return;
+            localStorage.setItem(START_IMAGE_KEY, currentPano.id);
+            updateSaveStatus('Imagen inicial fijada: ' + currentPano.title, false);
+        }
+
+        function getArrivalView(fromPanoId, direction = null) {
+            if (direction === 'forward') {
+                return { yaw: currentPano.forwardYaw, pitch: currentPano.forwardPitch };
+            }
+            if (direction === 'backward') {
+                return { yaw: currentPano.backwardYaw, pitch: currentPano.backwardPitch };
+            }
+            if (direction === 'left') {
+                return { yaw: currentPano.leftYaw, pitch: currentPano.leftPitch };
+            }
+            if (direction === 'right') {
+                return { yaw: currentPano.rightYaw, pitch: currentPano.rightPitch };
+            }
+            if (direction === 'down') {
+                return { yaw: currentPano.initialYaw, pitch: currentPano.initialPitch };
+            }
+            if (!fromPanoId) {
+                return { yaw: currentPano.initialYaw, pitch: currentPano.initialPitch };
+            }
+
+            const currentNumber = Number((currentPano.id.match(/\d+/) || [0])[0]);
+            const fromNumber = Number((fromPanoId.match(/\d+/) || [0])[0]);
+            if (fromNumber < currentNumber) {
+                return { yaw: currentPano.forwardYaw, pitch: currentPano.forwardPitch };
+            }
+
+            if (fromNumber > currentNumber) {
+                return { yaw: currentPano.backwardYaw, pitch: currentPano.backwardPitch };
+            }
+
+            return { yaw: currentPano.initialYaw, pitch: currentPano.initialPitch };
+        }
+
+        function preloadPanorama(path) {
+            if (!path) return Promise.resolve();
+            if (!panoramaImageCache.has(path)) {
+                const image = new Image();
+                const promise = new Promise(resolve => {
+                    image.onload = async () => {
+                        try { if (image.decode) await image.decode(); } catch (error) { /* La imagen ya puede usarse aunque decode no esté disponible. */ }
+                        resolve();
+                    };
+                    image.onerror = () => resolve();
+                });
+                image.src = path;
+                panoramaImageCache.set(path, promise);
+            }
+            return panoramaImageCache.get(path);
+        }
+
+        function setPanoramaLoading(isLoading) {
+            document.getElementById('panorama-loading')?.classList.toggle('visible', isLoading);
+        }
+
+        function syncIndicatorWithPanorama(pano) {
+            if (!pano) return;
+            const routeStep = routePath.find(step => step && step.fromId === pano.id);
+            const startPoints = getMapPointsForPanoramaId(pano.id);
+            const nextPoints = routeStep ? getMapPointsForPanoramaId(routeStep.toId) : [];
+            let selectedPoint = null;
+
+            if (routeStep && startPoints.length && nextPoints.length) {
+                let nearestDistance = Number.POSITIVE_INFINITY;
+                startPoints.forEach(startPoint => nextPoints.forEach(nextPoint => {
+                    const distance = Math.hypot(startPoint.x - nextPoint.x, startPoint.y - nextPoint.y);
+                    if (distance < nearestDistance) {
+                        nearestDistance = distance;
+                        selectedPoint = startPoint;
+                    }
+                }));
+            } else {
+                selectedPoint = minimapAdvancePoints.find(point => point.panoId === pano.id) || startPoints[0];
+            }
+
+            if (!selectedPoint) return;
+            minimapIndicator = { x: selectedPoint.x, y: selectedPoint.y };
+            renderMiniMap();
+            updateMapViewport();
+        }
+
+        async function init(fromPanoId = null, arrivalDirection = null) {
+            if (!currentPano || !currentPano.path) {
+                updateSaveStatus('Sin panoramas cargados', false);
+                return;
+            }
+            const panoToLoad = currentPano;
+            syncIndicatorWithPanorama(panoToLoad);
+            const requestId = ++viewerLoadRequest;
+            const arrivalView = getRouteHotspotView(panoToLoad.id) || getArrivalView(fromPanoId, arrivalDirection);
+            setPanoramaLoading(true);
+            await preloadPanorama(panoToLoad.path);
+            if (requestId !== viewerLoadRequest || currentPano !== panoToLoad) return;
+            if (viewer) viewer.destroy();
+            viewer = pannellum.viewer('panorama-container', {
+                "type": "equirectangular",
+                "panorama": panoToLoad.path,
+                "yaw": Number.isFinite(Number(arrivalView.yaw)) ? Number(arrivalView.yaw) : 0,
+                "pitch": Number.isFinite(Number(arrivalView.pitch)) ? Number(arrivalView.pitch) : 0,
+                "autoLoad": true,
+                // CSS evita la pantalla negra producida por WebGL en algunos equipos.
+                "renderer": "css",
+                "hfov": 90,
+                "showControls": false
+            });
+            viewer.on('load', () => {
+                setPanoramaLoading(false);
+                renderHS(); renderAlerts(); if(typeof updateSourceLabel === 'function') updateSourceLabel(); renderMiniMap(); updateMinimap(); setupLeafletMiniMap(); updateLeafletMiniMap();
+                focusRouteHotspot(false);
+                panoToLoad.hotspots.forEach(hotspot => {
+                    const target = panoramas.find(p => p.id === hotspot.targetId);
+                    if (target) preloadPanorama(target.path);
+                });
+            });
+            viewer.on('error', (error) => {
+                setPanoramaLoading(false);
+                console.error('No se pudo cargar la imagen del panorama', panoToLoad.path, error);
+                updateSaveStatus('No se pudo cargar esta imagen: ' + panoToLoad.path, false);
+            });
+            viewer.on('viewchange', () => { requestAnimationFrame(updateRouteLine); requestAnimationFrame(updateMinimap); requestAnimationFrame(updateLeafletMiniMap); });
+            const cont = document.getElementById('panorama-container');
+            cont.onclick = (e) => {
+                if (!isEdit || !alertPlacementMode || e.target.closest('.pnlm-hotspot')) return;
+                const c = viewer && viewer.mouseEventToCoords ? viewer.mouseEventToCoords(e) : null;
+                if (c) addAlertAtPosition(c[0], c[1]);
+            };
+            cont.ondblclick = (e) => {
+                if (!isEdit || alertPlacementMode) return;
+                const c = viewer.mouseEventToCoords(e);
+                if (!c) return;
+                const placementType = hotspotPlacementType === 'simple-alert' ? 'simple-alert' : hotspotPlacementType;
+                addHS(c[0], c[1], placementType);
+            };
+            cont.oncontextmenu = (e) => {
+                if (!isEdit) return;
+                e.preventDefault();
+                const c = viewer.mouseEventToCoords(e);
+                if (!c) return;
+                if (alertPlacementMode) {
+                    addAlertAtPosition(c[0], c[1]);
+                    return;
+                }
+                const titleInput = document.getElementById('label-titulo');
+                const descriptionInput = document.getElementById('label-descripcion');
+                const sizeInput = document.getElementById('label-size');
+                const posX = document.getElementById('label-pos-x');
+                const posY = document.getElementById('label-pos-y');
+                if (titleInput) titleInput.value = '';
+                if (descriptionInput) descriptionInput.value = '';
+                if (sizeInput) sizeInput.value = '12';
+                const sizeValue = document.getElementById('label-size-value');
+                if (sizeValue) sizeValue.textContent = '12 px';
+                if (posX) posX.value = String(Math.round(c[0]));
+                if (posY) posY.value = String(Math.round(c[1]));
+                document.getElementById('label-is-alert')?.click();
+                openLabelForm();
+                if (titleInput) titleInput.focus();
+            };
+        }
+
+        function openCircleForm(circle, editable = true) {
+            const set = (id, value) => { const input = document.getElementById(id); if (input) input.value = value || ''; };
+            const formPanel = document.getElementById('label-form-panel');
+            formPanel.classList.add('circle-form-mode');
+            formPanel.classList.toggle('view-form-mode', !editable);
+            formPanel.classList.toggle('class-data-mode', circle.type === 'exclamation' || circle.type === 'simple-alert');
+            const isSimple = circle.type === 'simple-alert';
+            setAlertFormMode(isSimple ? 'simple' : 'full');
+            const suggestions = document.getElementById('sugerencias-profesores');
+            if (suggestions) suggestions.innerHTML = '';
+            setLabelFormEditable(editable);
+            set('label-profesor', circle.profesor || circle.title || '');
+            set('label-curso', circle.curso);
+            set('label-grado', circle.grado);
+            set('label-salon', circle.salon);
+            set('label-dia', circle.dia);
+            set('label-id-horario', circle.idHorario);
+            set('label-hora-inicio', circle.horaInicio);
+            set('label-hora-fin', circle.horaFin);
+            actualizarHorarioDelMarcador(circle);
+            set('label-titulo', circle.titulo || circle.title || '');
+            set('label-descripcion', circle.descripcion || circle.description || '');
+            document.getElementById('label-is-alert').checked = !!(circle.alertMode || circle.title || circle.titulo || circle.descripcion || circle.description);
+            document.getElementById('label-form-panel').querySelector('.label-form-header span').textContent = isSimple ? 'Nombre del lugar' : (circle.type === 'exclamation' ? 'Datos de la clase' : 'Datos del círculo');
+            openLabelForm();
+        }
+
+        function addHS(p, y, type = 'arrow') {
+            const defaultTarget = document.getElementById('select-target').value || panoramas[0].id;
+            const isSimpleAlert = type === 'simple-alert';
+            const newH = { pitch: p, yaw: y, type, targetId: defaultTarget, sourceImage: currentPano.id, direction: 'forward', color: type === 'circle' ? 'green' : (type === 'exclamation' || isSimpleAlert) ? 'green' : 'white', w: (type === 'exclamation' || isSimpleAlert) ? 70 : 100, h: (type === 'exclamation' || isSimpleAlert) ? 70 : 100, rotate: 0, tilt: 0, idHorario: '', profesor: '', curso: '', grado: '', salon: '', dia: '', hora: '', horaInicio: '', horaFin: '', title: '', alertMode: isSimpleAlert ? 'simple' : 'full' };
+            currentPano.hotspots.push(newH);
+            selectedHS = newH;
+            renderHS();
+            syncMenu();
+            markDirty();
+        }
+
+        function setRouteStatus(message, timeoutMs = 0) {
+            const status = document.getElementById('route-status');
+            const text = message || '';
+            if (status) status.textContent = text;
+            if (routeStatusTimeout) clearTimeout(routeStatusTimeout);
+            if (timeoutMs > 0) {
+                routeStatusTimeout = setTimeout(() => {
+                    if (document.getElementById('route-status')) document.getElementById('route-status').textContent = '';
+                }, timeoutMs);
+            }
+        }
+
+        function clearActiveRoute() {
+            routeTargetId = null;
+            routePath = [];
+            routeNextHotspot = null;
+            const destination = document.getElementById('route-destination');
+            if (destination) destination.value = '';
+            setRouteStatus('');
+            updateRouteLine();
+        }
+
+        function isActiveRouteHotspot(hs) {
+            if (!hs) return false;
+            const currentId = currentPano?.id;
+            if (!routePath || !routePath.length) {
+                return !!(routeTargetId && hs.targetId === routeTargetId && hs.sourceImage === currentId);
+            }
+            return routePath.some(step => step && step.fromId === currentId && step.hotspot === hs);
+        }
+
+        function getRouteHotspotView(panoId = currentPano?.id) {
+            const step = routePath.find(item => item && item.fromId === panoId);
+            if (!step || !step.hotspot) return null;
+            const yaw = Number(step.hotspot.yaw);
+            const pitch = Number(step.hotspot.pitch);
+            return Number.isFinite(yaw) && Number.isFinite(pitch) ? { yaw, pitch } : null;
+        }
+
+        function focusRouteHotspot(animated = true) {
+            const routeView = getRouteHotspotView();
+            if (!viewer || !routeView) return;
+            viewer.setYaw(routeView.yaw, animated);
+            viewer.setPitch(routeView.pitch, animated);
+        }
+
+        function getArrowSvgDataUri(color) {
+            const svg = `<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='${color}'><path d='M12 2L4.5 20.29L5.21 21L12 18L18.79 21L19.5 20.29L12 2Z'/></svg>`;
+            return `url("data:image/svg+xml,${encodeURIComponent(svg)}")`;
+        }
+
+        function renderHS() {
+            const cfg = viewer && viewer.getConfig ? viewer.getConfig() : null;
+            if (cfg && cfg.hotSpots) [...cfg.hotSpots].forEach(h => viewer.removeHotSpot(h.id));
+
+            currentPano.hotspots.forEach((hs, i) => {
+                const normalizedColor = isActiveRouteHotspot(hs) ? 'green' : (hs.color || 'white');
+                const isExclamationLike = hs.type === 'exclamation' || hs.type === 'simple-alert';
+                viewer.addHotSpot({
+                    "id": "h"+i, "pitch": hs.pitch, "yaw": hs.yaw, "cssClass": hs.type === 'circle' ? 'circle-hotspot' : isExclamationLike ? 'exclamation-hotspot' : 'custom-arrow',
+                    "createTooltipFunc": (el) => {
+                        if (selectedHS === hs) el.classList.add('selected');
+                        el.innerHTML = '';
+                        const inner = document.createElement('div');
+                        inner.className = (hs.type === 'circle' ? 'circle-inner' : isExclamationLike ? 'exclamation-inner' : 'arrow-inner') + (selectedHS === hs ? ' selected' : '');
+                        if (isExclamationLike) inner.textContent = '!';
+                        inner.style.width = hs.w + "px"; inner.style.height = hs.h + "px";
+                        inner.style.transform = `rotate(${hs.rotate}deg) rotateX(${hs.tilt}deg)`;
+                        const directionNames = { forward: 'Adelante', backward: 'Atrás', down: 'Abajo', right: 'Derecha', left: 'Izquierda' };
+                        inner.title = `Dirección: ${directionNames[hs.direction] || 'Adelante'}`;
+                        const f = { white: 'brightness(0) invert(1)', red: 'sepia(1) saturate(5) hue-rotate(-50deg)', blue: 'sepia(1) saturate(5) hue-rotate(180deg)', yellow: 'sepia(1) saturate(5) hue-rotate(10deg)', green: 'brightness(1.35) saturate(3) sepia(1) hue-rotate(95deg)' };
+                        if (isExclamationLike) {
+                            const colors = { white: '#ffffff', red: '#ef4444', blue: '#3b82f6', yellow: '#f59e0b', green: '#2d9f4d' };
+                            const markerColor = colors[normalizedColor] || colors.green;
+                            inner.style.background = markerColor;
+                            inner.style.borderColor = markerColor;
+                            inner.style.boxShadow = `0 0 0 3px ${markerColor}59, 0 4px 12px rgba(0, 0, 0, 0.45)`;
+                            inner.style.filter = 'none';
+                        } else {
+                            const arrowColor = normalizedColor === 'green' ? '#2d9f4d' : '#ffffff';
+                            inner.style.backgroundImage = getArrowSvgDataUri(arrowColor);
+                            inner.style.backgroundColor = normalizedColor === 'green' ? 'rgba(45, 159, 77, 0.18)' : 'transparent';
+                            inner.style.filter = normalizedColor === 'green' ? 'drop-shadow(0 0 6px rgba(45,159,77,0.9))' : (f[normalizedColor] || f.white);
+                        }
+                        inner.style.touchAction = 'none';
+                        inner.style.cursor = 'pointer';
+                        inner.style.position = 'relative';
+
+                        inner.onpointerdown = (ev) => {
+                            if(!isEdit || !allowHotspotMove || rotateDragging) return;
+                            ev.preventDefault(); ev.stopPropagation();
+                            draggingHS = hs; isDragging = true;
+                        };
+
+                        const rotHandle = document.createElement('div');
+                        rotHandle.className = 'rotate-handle';
+                        rotHandle.title = 'Arrastra para rotar';
+                        rotHandle.style.position = 'absolute';
+                        rotHandle.style.right = '-10px';
+                        rotHandle.style.top = '-10px';
+                        rotHandle.style.width = '16px';
+                        rotHandle.style.height = '16px';
+                        rotHandle.style.borderRadius = '50%';
+                        rotHandle.style.background = 'rgba(255,255,255,0.95)';
+                        rotHandle.style.border = '1px solid rgba(0,0,0,0.2)';
+                        rotHandle.style.cursor = 'grab';
+                        rotHandle.style.display = 'flex';
+                        rotHandle.style.alignItems = 'center';
+                        rotHandle.style.justifyContent = 'center';
+                        rotHandle.style.fontSize = '10px';
+                        rotHandle.textContent = '⤾';
+
+                        rotHandle.onpointerdown = (ev) => {
+                            if(!isEdit) return;
+                            ev.preventDefault(); ev.stopPropagation();
+                            rotateDragging = true;
+                            rotateStartX = ev.clientX;
+                            rotateStartRotate = Number(hs.rotate) || 0;
+                        };
+                        rotHandle.onpointerover = () => { rotHandle.style.cursor = 'grab'; };
+                        rotHandle.onpointerout = () => { rotHandle.style.cursor = 'default'; };
+
+                        el.appendChild(inner);
+                        el.appendChild(rotHandle);
+                    },
+                    "clickHandlerFunc": () => {
+                        if (isEdit) {
+                            selectedHS = hs;
+                            selectedLabel = null;
+                            selectedCircle = ['circle', 'exclamation', 'simple-alert'].includes(hs.type) ? hs : null;
+                            if (selectedCircle) openCircleForm(selectedCircle, true);
+                            renderHS();
+                            syncMenu();
+                        }
+                        else {
+                            if (['circle', 'exclamation', 'simple-alert'].includes(hs.type)) {
+                                selectedCircle = hs;
+                                openCircleForm(hs, false);
+                                return;
+                            }
+                            const t = panoramas.find(p => p.id === hs.targetId);
+                            if (t) {
+                                const plannedStep = routePath[0];
+                                const followsPlannedRoute = !!(plannedStep &&
+                                    plannedStep.fromId === currentPano.id &&
+                                    plannedStep.toId === t.id &&
+                                    plannedStep.hotspot === hs);
+                                currentPano = t;
+                                if (routeTargetId) {
+                                    if (currentPano.id === routeTargetId) {
+                                        clearActiveRoute();
+                                        setRouteStatus('Has llegado a tu destino.', 5000);
+                                        renderMiniMap();
+                                        updateLeafletMiniMap();
+                                        renderMapGuide();
+                                    } else {
+                                        if (followsPlannedRoute) {
+                                            routePath = routePath.slice(1);
+                                        } else {
+                                            routePath = findRoute(currentPano.id, routeTargetId);
+                                        }
+                                        routeNextHotspot = routePath[0] || null;
+                                        if (routePath.length) {
+                                            setRouteStatus(`Ruta: ${[currentPano.id, ...routePath.map(step => step.toId)].join(' → ')}`);
+                                        } else {
+                                            setRouteStatus('Se ha desviado, pero la ruta sigue buscando el destino correcto.');
+                                        }
+                                    }
+                                }
+                                init(hs.sourceImage || currentPano.id, hs.direction);
+                                renderMapGuide();
+                            }
+                        }
+                    }
+                });
+            });
+            requestAnimationFrame(updateRouteLine);
+        }
+
+        function findRoute(fromId, targetId) {
+            if (!targetId || fromId === targetId) return [];
+
+            const graph = new Map();
+            panoramas.forEach(pano => {
+                const edges = (pano.hotspots || [])
+                    .filter(hotspot => hotspot && hotspot.targetId && (!hotspot.type || hotspot.type === 'arrow'))
+                    .map(hotspot => {
+                        const fromPoints = getMapPointsForPanoramaId(pano.id);
+                        const toPoints = getMapPointsForPanoramaId(hotspot.targetId);
+                        let mapDistance = Number.POSITIVE_INFINITY;
+                        fromPoints.forEach(fromPoint => toPoints.forEach(toPoint => {
+                            mapDistance = Math.min(mapDistance, Math.hypot(fromPoint.x - toPoint.x, fromPoint.y - toPoint.y));
+                        }));
+                        return {
+                            toId: hotspot.targetId,
+                            hotspot,
+                            weight: Number.isFinite(mapDistance) ? mapDistance : (Number(hotspot.distance) || 1)
+                        };
+                    })
+                    .filter(Boolean)
+                    .sort((a, b) => (a.weight || 1) - (b.weight || 1));
+                graph.set(pano.id, edges);
+            });
+
+            const bestCost = new Map();
+            const previous = new Map();
+            const queue = [{ id: fromId, direction: null, cost: 0 }];
+            const startKey = `${fromId}|null`;
+            bestCost.set(startKey, 0);
+
+            while (queue.length) {
+                queue.sort((a, b) => a.cost - b.cost);
+                const current = queue.shift();
+                if (!current) break;
+
+                const currentKey = `${current.id}|${current.direction ?? 'null'}`;
+                const currentCost = bestCost.get(currentKey) ?? Number.POSITIVE_INFINITY;
+                if (current.cost > currentCost + 1e-9) continue;
+                if (current.id === targetId) break;
+
+                for (const edge of graph.get(current.id) || []) {
+                    const nextDirection = String(edge.hotspot?.direction || 'forward');
+                    const baseDistanceWeight = Number(edge.weight) || 1;
+                    let turnPenalty = 1 + baseDistanceWeight * 0.8;
+                    if (nextDirection === 'backward') turnPenalty += 4;
+                    if (nextDirection === 'down') turnPenalty += 2;
+                    if (current.direction && current.direction !== nextDirection) turnPenalty += 1.5;
+                    if ((nextDirection === 'left' || nextDirection === 'right') && current.direction && current.direction !== nextDirection) turnPenalty += 0.75;
+
+                    const nextCost = currentCost + turnPenalty;
+                    const nextKey = `${edge.toId}|${nextDirection}`;
+                    if (nextCost < (bestCost.get(nextKey) ?? Number.POSITIVE_INFINITY)) {
+                        bestCost.set(nextKey, nextCost);
+                        previous.set(nextKey, { fromId: current.id, fromKey: currentKey, hotspot: edge.hotspot, toId: edge.toId });
+                        queue.push({ id: edge.toId, direction: nextDirection, cost: nextCost });
+                    }
+                }
+            }
+
+            const targetCandidates = [...bestCost.entries()]
+                .filter(([key]) => key.startsWith(`${targetId}|`))
+                .sort((a, b) => a[1] - b[1]);
+            const bestTarget = targetCandidates[0];
+            if (!bestTarget) return [];
+
+            const path = [];
+            let cursorKey = bestTarget[0];
+            while (cursorKey && cursorKey !== startKey) {
+                const step = previous.get(cursorKey);
+                if (!step) break;
+                path.unshift({ fromId: step.fromId, hotspot: step.hotspot, toId: step.toId });
+                cursorKey = step.fromKey;
+            }
+            return path;
+        }
+
+        function getForwardHotspot(pano) {
+            const currentNumber = Number((pano.id.match(/\d+/) || [0])[0]);
+            return pano.hotspots.find(h => {
+                const targetNumber = Number(((h.targetId || '').match(/\d+/) || [0])[0]);
+                return targetNumber > currentNumber;
+            }) || pano.hotspots[0] || null;
+        }
+
+        function navigateWithKeyboard(direction) {
+            if (!currentPano || !panoramas.length) return;
+            const panels = panoramas
+                .filter(p => p && /^imagen\d+$/.test(p.id))
+                .sort((a, b) => Number(a.id.replace('imagen', '')) - Number(b.id.replace('imagen', '')));
+            const currentIndex = panels.findIndex(p => p.id === currentPano.id);
+            const target = panels[currentIndex + direction];
+            if (!target) return;
+
+            const previousPanoId = currentPano.id;
+            currentPano = target;
+            routeTargetId = null;
+            routePath = [];
+            routeNextHotspot = null;
+            init(previousPanoId);
+
+            const advancePoint = minimapAdvancePoints.find(point => point.panoId === target.id);
+            if (advancePoint) minimapIndicator = { x: advancePoint.x, y: advancePoint.y };
+        }
+
+        function moveWithArrowKey(key) {
+            if (!currentPano || !viewer) return;
+            const viewMap = {
+                ArrowUp: { yaw: currentPano.forwardYaw, pitch: currentPano.forwardPitch },
+                ArrowDown: { yaw: currentPano.backwardYaw, pitch: currentPano.backwardPitch },
+                ArrowLeft: { yaw: currentPano.leftYaw, pitch: currentPano.leftPitch },
+                ArrowRight: { yaw: currentPano.rightYaw, pitch: currentPano.rightPitch }
+            };
+            const targetView = viewMap[key];
+            if (targetView && Number.isFinite(Number(targetView.yaw)) && Number.isFinite(Number(targetView.pitch))) {
+                viewer.setView(Number(targetView.yaw), Number(targetView.pitch), 90, true);
+                return;
+            }
+
+            const fallbackDirection = { ArrowUp: 1, ArrowDown: -1, ArrowLeft: -1, ArrowRight: 1 }[key];
+            if (Number.isFinite(fallbackDirection)) {
+                navigateWithKeyboard(fallbackDirection);
+            }
+        }
+
+        const minimapLayout = {
+            imagen1: { x: 20, y: 67 },
+            imagen2: { x: 30, y: 40 },
+            imagen3: { x: 40, y: 25 },
+            imagen4: { x: 57, y: 18 },
+            imagen5: { x: 67, y: 32 },
+            imagen7: { x: 72, y: 56 },
+            imagen8: { x: 58, y: 72 },
+            imagen9: { x: 43, y: 76 }
+        };
+
+        async function loadMiniMapState() {
+            try {
+                if (localStorage.getItem(MINIMAP_LOCATIONS_VERSION_KEY) !== MINIMAP_LOCATIONS_VERSION) {
+                    const response = await fetch(MINIMAP_LOCATIONS_FILE, { cache: 'no-store' });
+                    if (response.ok) {
+                        const imported = await response.json();
+                        if (imported.indicador && Array.isArray(imported.puntosAvance)) {
+                            if (!localStorage.getItem(MINIMAP_INDICATOR_KEY)) {
+                                localStorage.setItem(MINIMAP_INDICATOR_KEY, JSON.stringify(imported.indicador));
+                            }
+                            const savedPoints = JSON.parse(localStorage.getItem(MINIMAP_ADVANCE_KEY) || 'null');
+                            const syncedPoints = Array.isArray(savedPoints)
+                                ? savedPoints.map(point => {
+                                    const importedPoint = imported.puntosAvance.find(item => item.id && item.id === point.id);
+                                    return importedPoint && importedPoint.panoId !== point.panoId
+                                        ? { ...point, panoId: importedPoint.panoId }
+                                        : point;
+                                })
+                                : [];
+                            const savedPointIds = new Set(syncedPoints.map(point => point.id).filter(Boolean));
+                            imported.puntosAvance.forEach(point => {
+                                if (!point.id || !savedPointIds.has(point.id)) syncedPoints.push(point);
+                            });
+                            localStorage.setItem(MINIMAP_ADVANCE_KEY, JSON.stringify(syncedPoints));
+                            localStorage.setItem(MINIMAP_LOCATIONS_VERSION_KEY, MINIMAP_LOCATIONS_VERSION);
+                        }
+                    }
+                }
+                const savedIndicator = JSON.parse(localStorage.getItem(MINIMAP_INDICATOR_KEY) || 'null') || mapGuide.minimapIndicator;
+                if (savedIndicator && Number.isFinite(Number(savedIndicator.x)) && Number.isFinite(Number(savedIndicator.y))) {
+                    minimapIndicator = { x: clampNumber(Number(savedIndicator.x), 0, 100), y: clampNumber(Number(savedIndicator.y), 0, 100) };
+                }
+                const savedPoints = JSON.parse(localStorage.getItem(MINIMAP_ADVANCE_KEY) || 'null');
+                const pointsToLoad = Array.isArray(savedPoints) ? savedPoints : mapGuide.minimapAdvancePoints;
+                if (Array.isArray(pointsToLoad)) {
+                    minimapAdvancePoints = pointsToLoad.filter(item => item && Number.isFinite(Number(item.x)) && Number.isFinite(Number(item.y))).map(item => ({
+                        id: item.id || `advance-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                        x: clampNumber(Number(item.x), 0, 100),
+                        y: clampNumber(Number(item.y), 0, 100),
+                        panoId: typeof item.panoId === 'string' && item.panoId.trim() ? item.panoId.trim() : 'imagen1'
+                    }));
+                }
+            } catch (error) {
+                console.warn('No se pudo cargar el estado del mini mapa', error);
+            }
+        }
+
+        function saveMiniMapState() {
+            try {
+                localStorage.setItem(MINIMAP_INDICATOR_KEY, JSON.stringify(minimapIndicator));
+                localStorage.setItem(MINIMAP_ADVANCE_KEY, JSON.stringify(minimapAdvancePoints));
+                mapGuide.minimapIndicator = minimapIndicator;
+                mapGuide.minimapAdvancePoints = minimapAdvancePoints;
+                localStorage.setItem(MAP_GUIDE_KEY, JSON.stringify(mapGuide));
+            } catch (error) {
+                console.warn('No se pudo guardar el estado del mini mapa', error);
+            }
+        }
+
+        function setMiniMapPlacementMode(mode) {
+            minimapPlacementMode = minimapPlacementMode === mode ? null : mode;
+            document.getElementById('btn-place-indicator')?.classList.toggle('active', minimapPlacementMode === 'indicator');
+            document.getElementById('btn-place-advance')?.classList.toggle('active', minimapPlacementMode === 'advance');
+            document.getElementById('btn-place-panorama')?.classList.toggle('active', minimapPlacementMode === 'panorama');
+            const label = document.getElementById('btn-place-indicator');
+            if (label) label.textContent = minimapPlacementMode === 'indicator' ? '📍 Clic para ubicar indicador' : '📍 Colocar indicador';
+            const advance = document.getElementById('btn-place-advance');
+            if (advance) advance.textContent = minimapPlacementMode === 'advance' ? '🎯 Clic para ubicar punto' : '🎯 Colocar punto avance';
+            const panorama = document.getElementById('btn-place-panorama');
+            if (panorama) panorama.textContent = minimapPlacementMode === 'panorama' ? '📷 Clic en el mapa para colocar' : '📷 Colocar esta imagen en el mapa';
+        }
+
+        function placeMiniMapPoint(event) {
+            const wrapper = document.getElementById('mapa-google-wrapper');
+            if (!wrapper || !minimapPlacementMode || event.button !== 0) return;
+            event.stopPropagation();
+            const rect = wrapper.getBoundingClientRect();
+            const x = clampNumber(((event.clientX - rect.left) / rect.width) * 100, 0, 100);
+            const y = clampNumber(((event.clientY - rect.top) / rect.height) * 100, 0, 100);
+            if (minimapPlacementMode === 'indicator') {
+                minimapIndicator = { x, y };
+            } else if (minimapPlacementMode === 'panorama') {
+                if (!currentPano) return;
+                mapGuide.panoramaPositions = mapGuide.panoramaPositions || {};
+                mapGuide.panoramaPositions[currentPano.id] = {
+                    x,
+                    y,
+                    title: currentPano.title || currentPano.id,
+                    path: currentPano.path
+                };
+            } else {
+                const panoId = currentPano ? currentPano.id : 'imagen1';
+                const msg = prompt('¿En qué imagen está este punto de avance? (ej: imagen1, imagen2, etc.)', panoId);
+                if (msg) {
+                    minimapAdvancePoints.push({ id: 'advance-' + Date.now() + '-' + Math.random().toString(16).slice(2), x, y, panoId: msg.trim() });
+                }
+            }
+            saveMiniMapState();
+            renderMiniMap();
+            updateMinimap();
+            renderMinimapElementsList();
+            setMiniMapPlacementMode(null);
+        }
+
+        function renderMiniMap() {
+            const nodesWrap = document.getElementById('minimap__nodes');
+            const userMarker = document.getElementById('minimap__user');
+            if (!nodesWrap || !userMarker) return;
+            nodesWrap.innerHTML = '';
+            const activeRoutePanoIds = new Set(routeTargetId ? [
+                currentPano?.id,
+                ...routePath.flatMap(step => [step.fromId, step.toId]),
+                routeTargetId
+            ].filter(Boolean) : []);
+            const targetRoutePoint = routeTargetId ? getMapPointsForPanoramaId(routeTargetId)[0] : null;
+            const activeRoutePoints = targetRoutePoint && minimapIndicator
+                ? buildRouteLinePoints(minimapIndicator, targetRoutePoint)
+                : [];
+
+            Object.entries(minimapLayout).forEach(([id, coord]) => {
+                const isCurrent = currentPano && currentPano.id === id;
+                const isTarget = routeTargetId && routeTargetId === id;
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'minimap__node' + (isCurrent ? ' current' : '') + (isTarget ? ' active' : '');
+                button.style.left = coord.x + '%';
+                button.style.top = coord.y + '%';
+                button.title = id;
+                button.onclick = () => {
+                    routeTargetId = id;
+                    document.getElementById('route-destination').value = id;
+                    showRoute();
+                    renderMiniMap();
+                };
+                nodesWrap.appendChild(button);
+            });
+            Object.entries(mapGuide.panoramaPositions || {}).forEach(([id, position]) => {
+                const panorama = panoramas.find(item => item.id === id);
+                if (!panorama) return;
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'minimap__node panorama-node' + (currentPano && currentPano.id === id ? ' current' : '');
+                button.style.left = `${position.x}%`;
+                button.style.top = `${position.y}%`;
+                button.title = panorama.title || id;
+                button.onclick = () => {
+                    currentPano = panorama;
+                    selectedHS = null;
+                    init();
+                    updateSourceLabel();
+                    renderMiniMap();
+                };
+                nodesWrap.appendChild(button);
+            });
+
+            minimapAdvancePoints.forEach(point => {
+                const advance = document.createElement('button');
+                advance.type = 'button';
+                advance.className = 'minimap-route-node';
+                advance.style.left = point.x + '%';
+                advance.style.top = point.y + '%';
+                advance.style.width = '12px';
+                advance.style.height = '12px';
+                const isOnActiveRoute = activeRoutePanoIds.has(point.panoId) || activeRoutePoints.some(routePoint =>
+                    Math.abs(routePoint.x - Number(point.x)) < 0.001 && Math.abs(routePoint.y - Number(point.y)) < 0.001
+                );
+                advance.style.background = isOnActiveRoute ? '#22c55e' : '#f59e0b';
+                advance.style.border = '2px solid #fff';
+                advance.style.boxShadow = isOnActiveRoute ? '0 0 0 3px rgba(34,197,94,0.4)' : '0 0 0 3px rgba(245,158,11,0.35)';
+                advance.title = 'Punto de avance para ' + (point.panoId || '?') + (isOnActiveRoute ? ' (ruta activa)' : '');
+                advance.onclick = (event) => {
+                    event.stopPropagation();
+                    if (isEdit) return;
+                    const target = panoramas.find(pano => pano.id === point.panoId);
+                    if (!target) return;
+                    currentPano = target;
+                    init();
+                };
+                nodesWrap.appendChild(advance);
+            });
+
+            if (minimapIndicator) {
+                userMarker.style.left = minimapIndicator.x + '%';
+                userMarker.style.top = minimapIndicator.y + '%';
+            }
+            userMarker.style.transform = 'translate(-50%, -50%)';
+            userMarker.title = 'Indicador del usuario';
+        }
+
+        function updateMinimap() {
+            const minimap = document.getElementById('minimap__user');
+            if (!minimap || !viewer) { renderMapGuide(); return; }
+            renderMapGuide();
+
+            if (minimapIndicator) {
+                minimap.style.left = minimapIndicator.x + '%';
+                minimap.style.top = minimapIndicator.y + '%';
+                minimap.style.transform = 'translate(-50%, -50%)';
+            } else {
+                const yaw = Number(viewer.getYaw()) || 0;
+                const angle = ((yaw + 180) % 360 + 360) % 360;
+                const x = 50 + Math.sin((angle - 90) * Math.PI / 180) * 18;
+                const y = 50 + Math.cos((angle - 90) * Math.PI / 180) * 16;
+                minimap.style.left = x + '%';
+                minimap.style.top = y + '%';
+                minimap.style.transform = 'translate(-50%, -50%) rotate(' + yaw + 'deg)';
+            }
+            updateMapViewport();
+            updateLeafletMiniMap();
+        }
+
+        function updateMapViewport() {
+            const wrapper = document.getElementById('mapa-google-wrapper');
+            const surface = document.getElementById('mapa-google-surface');
+            if (!wrapper || !surface) return;
+            if (wrapper.closest('#map-guide-modal')) {
+                surface.classList.remove('map-cropped');
+                surface.style.transform = 'none';
+                return;
+            }
+            const zoom = Math.max(100, Number(mapSettings.zoom) || 200);
+            const scale = zoom / 100;
+            const point = mapSettings.followIndicator ? (minimapIndicator || { x: 50, y: 50 }) : { x: mapSettings.viewX, y: mapSettings.viewY };
+            const minOffset = (1 / scale - 1) * 100;
+            const left = Math.max(minOffset, Math.min(0, (50 / scale) - Number(point.x)));
+            const top = Math.max(minOffset, Math.min(0, (50 / scale) - Number(point.y)));
+            surface.style.width = `${zoom}%`;
+            surface.style.height = `${zoom}%`;
+            surface.style.transform = `translate(${left}%, ${top}%)`;
+        }
+
+        function updateRouteLine() {
+            const svg = document.getElementById('route-line');
+            if (svg) svg.style.display = 'none';
+            const pathEl = document.getElementById('route-path');
+            const endEl = document.getElementById('route-end');
+            if (pathEl) pathEl.setAttribute('d', '');
+            if (endEl) endEl.style.display = 'none';
+        }
+
+        function showRoute() {
+            const input = document.getElementById('route-destination');
+            const typed = (input ? (input.value || '').trim().toLowerCase() : '');
+            const target = panoramas.find(p => p.id.toLowerCase() === typed.replace(/\s+/g, '') || p.id.toLowerCase() === typed.replace('panel', 'imagen').replace(/\s+/g, '') || p.title.toLowerCase() === typed);
+            const status = document.getElementById('route-status');
+            if (!target) {
+                routeTargetId = null; routePath = []; routeNextHotspot = null; updateRouteLine();
+                if (status) setRouteStatus('No encontré esa imagen.');
+                renderMiniMap();
+                renderMapGuide();
+                return;
+            }
+            routeTargetId = target.id;
+            routePath = findRoute(currentPano.id, routeTargetId);
+            if (!routePath.length) {
+                routeNextHotspot = null;
+                updateRouteLine();
+                if (currentPano.id === routeTargetId) {
+                    clearActiveRoute();
+                    setRouteStatus('Has llegado a tu destino.', 5000);
+                } else if (status) {
+                    setRouteStatus('No hay una ruta con las flechas actuales.');
+                }
+                renderMiniMap();
+                renderMapGuide();
+                return;
+            }
+            routeNextHotspot = routePath[0];
+            if (status) setRouteStatus(`Ruta: ${[currentPano.id, ...routePath.map(step => step.toId)].join(' → ')}`);
+            syncIndicatorWithPanorama(currentPano);
+            focusRouteHotspot(true);
+            renderHS();
+            renderMiniMap();
+            renderMapGuide();
+        }
+
+        async function cargarLugaresGuardados() {
+            const select = document.getElementById('select-lugares-guardados');
+            if (!select) return;
+            try {
+                const panoramaId = currentPano && currentPano.id ? currentPano.id : '';
+                const url = panoramaId ? `api.php?action=lugares&panorama_id=${encodeURIComponent(panoramaId)}` : 'api.php?action=lugares';
+                const response = await fetch(url, { cache: 'no-store' });
+                const payload = await response.json();
+                const items = Array.isArray(payload?.items) ? payload.items : [];
+                select.innerHTML = '<option value="">Selecciona un lugar</option>';
+                items.forEach(item => {
+                    const option = document.createElement('option');
+                    option.value = String(item.id_lugar ?? '');
+                    const title = String(item.titulo || item.materia || item.salon || 'Lugar').trim();
+                    option.textContent = title;
+                    select.appendChild(option);
+                });
+            } catch (error) {
+                console.warn('No se pudieron cargar los lugares guardados', error);
+                select.innerHTML = '<option value="">No hay lugares guardados</option>';
+            }
+        }
+
+        async function guardarLugarEnBaseDeDatos() {
+            const isSimpleMode = document.getElementById('label-alert-form-mode')?.value === 'simple';
+            const titulo = (document.getElementById('label-profesor')?.value.trim() || document.getElementById('label-titulo')?.value.trim() || '').trim();
+            const descripcion = document.getElementById('label-descripcion')?.value.trim() || '';
+            const horarioIdValue = document.getElementById('label-id-horario')?.value;
+            const horarioId = horarioIdValue ? Number(horarioIdValue) : null;
+            const pitchInput = document.getElementById('label-pitch');
+            const yawInput = document.getElementById('label-yaw');
+            const pitch = Number(pitchInput && pitchInput.value ? pitchInput.value : 0);
+            const yaw = Number(yawInput && yawInput.value ? yawInput.value : 0);
+
+            if (!currentPano || !currentPano.id) {
+                alert('Primero selecciona una imagen del panorama.');
+                return false;
+            }
+            if (!titulo) {
+                alert('Escribe un nombre para guardar el lugar.');
+                return false;
+            }
+            if (!isSimpleMode && (!horarioId || !Number.isFinite(horarioId))) {
+                alert('Debes seleccionar un horario válido antes de guardar.');
+                return false;
+            }
+
+            try {
+                const response = await fetch('api.php?action=guardar_lugar', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        panorama_id: currentPano.id,
+                        titulo,
+                        descripcion,
+                        id_horario: isSimpleMode ? null : horarioId,
+                        pitch,
+                        yaw
+                    })
+                });
+                const payload = await response.json();
+                if (!response.ok || !payload?.ok) {
+                    throw new Error(payload?.error || 'No se pudo guardar el lugar.');
+                }
+                await cargarLugaresGuardados();
+                if (typeof cargarSugerenciasNombresLugares === 'function') {
+                    await cargarSugerenciasNombresLugares();
+                }
+                updateSaveStatus('Lugar guardado correctamente.', false);
+                alert('Lugar guardado correctamente.');
+                return true;
+            } catch (error) {
+                console.error('guardarLugarEnBaseDeDatos', error);
+                alert(error.message || 'No se pudo guardar el lugar.');
+                return false;
+            }
+        }
+
+        function getDayNameFromCurrentCalendar() {
+            const selectedDay = document.getElementById('label-dia')?.value || calendarioDia || '';
+            return selectedDay || '';
+        }
+
+        function getMinutesFromCurrentCalendar() {
+            const selectedTime = document.getElementById('weekly-calendar-time')?.value || calendarioHora || '';
+            return getMinutesFromTime(selectedTime);
+        }
+
+        function getMinutesFromTime(value) {
+            if (!value) return null;
+            const match = /^([01]?\d|2[0-3]):([0-5]\d)$/.exec(String(value));
+            if (!match) return null;
+            return Number(match[1]) * 60 + Number(match[2]);
+        }
+
+        function getGradoBreakStatus(grado, hora = calendarioHora || document.getElementById('weekly-calendar-time')?.value || '') {
+            const value = String(grado || '').trim();
+            const match = value.match(/(\d+)/);
+            if (!match) return null;
+            const numero = Number(match[1]);
+            const ahora = horarioEnMinutos(hora);
+            if (!Number.isFinite(ahora) || ahora < 0) return null;
+
+            const descansos = numero >= 10 && numero <= 11
+                ? [
+                    { inicio: '09:55', fin: '10:25' },
+                    { inicio: '12:15', fin: '13:10' }
+                ]
+                : numero >= 6 && numero <= 9
+                    ? [{ inicio: '09:00', fin: '09:30' }]
+                    : [];
+
+            for (const descanso of descansos) {
+                const inicio = horarioEnMinutos(descanso.inicio);
+                const fin = horarioEnMinutos(descanso.fin);
+                if (ahora >= inicio && ahora <= fin) {
+                    return { inicio: descanso.inicio, fin: descanso.fin };
+                }
+            }
+
+            return null;
+        }
+
+        function getHorarioCoincidentePorGrado(grado, dia = getDayNameFromCurrentCalendar(), hora = calendarioHora || document.getElementById('weekly-calendar-time')?.value || '') {
+            const value = String(grado || '').trim();
+            if (!value) return null;
+            const ahora = horarioEnMinutos(hora);
+            if (!Number.isFinite(ahora) || ahora < 0) return null;
+
+            const candidatos = horariosColegio.filter(item => {
+                const itemGrado = String(item.grado || '').trim().toLowerCase();
+                const itemDia = String(item.dia || '').trim();
+                if (itemGrado !== value.toLowerCase()) return false;
+                if (dia && diaNormalizado(itemDia) !== diaNormalizado(dia)) return false;
+                const start = horarioEnMinutos(item.hora_inicio);
+                const end = horarioEnMinutos(item.hora_fin);
+                if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
+                if (String(item.curso || '').trim().toLowerCase() === 'libre') return false;
+                return ahora >= start && ahora < end;
+            });
+            if (candidatos.length) {
+                return candidatos.sort((a, b) => horarioEnMinutos(a.hora_inicio) - horarioEnMinutos(b.hora_inicio))[0];
+            }
+
+            return null;
+        }
+
+        function getMensajeSinClaseParaGrado(grado, dia, hora) {
+            const ahora = horarioEnMinutos(hora);
+            if (!dia || ahora < 0) return `Selecciona el día y la hora para comprobar el horario del grado ${grado}.`;
+            const gradoBuscado = String(grado || '').trim().toLowerCase();
+
+            const horariosDelDia = horariosColegio.filter(item => {
+                const itemGrado = String(item.grado || '').trim().toLowerCase();
+                const itemDia = String(item.dia || '').trim();
+                if (itemGrado !== gradoBuscado) return false;
+                if (dia && diaNormalizado(itemDia) !== diaNormalizado(dia)) return false;
+                const start = horarioEnMinutos(item.hora_inicio);
+                const end = horarioEnMinutos(item.hora_fin);
+                if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
+                return true;
+            });
+
+            if (!horariosDelDia.length) return `No hay jornada programada para el grado ${grado} el ${dia}.`;
+
+            const starts = horariosDelDia.map(item => horarioEnMinutos(item.hora_inicio));
+            const ends = horariosDelDia.map(item => horarioEnMinutos(item.hora_fin));
+            const primeraHora = Math.min(...starts);
+            const ultimaHora = Math.max(...ends);
+            const formatTime = minutes => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
+
+            if (ahora < primeraHora) return `La jornada del grado ${grado} aún no empieza; inicia a las ${formatTime(primeraHora)}.`;
+            if (ahora >= ultimaHora) return `La jornada del grado ${grado} ya terminó a las ${formatTime(ultimaHora)}.`;
+            return `El grado ${grado} no está en clase el ${dia} a las ${hora}.`;
+        }
+
+        function mostrarAlertaHorario(message) {
+            const overlay = document.getElementById('schedule-alert-overlay');
+            const messageElement = document.getElementById('schedule-alert-message');
+            if (!overlay || !messageElement) return;
+            messageElement.textContent = message;
+            overlay.setAttribute('aria-hidden', 'false');
+            overlay.classList.add('open');
+            document.getElementById('schedule-alert-close')?.focus();
+        }
+
+        function cerrarAlertaHorario() {
+            const overlay = document.getElementById('schedule-alert-overlay');
+            if (!overlay) return;
+            overlay.classList.remove('open');
+            overlay.setAttribute('aria-hidden', 'true');
+        }
+
+        function findBestSalonMatch(salon, grado = '') {
+            const expectedSalon = String(salon || '').trim().toLowerCase();
+            const expectedGrado = String(grado || '').trim().toLowerCase();
+            if (!expectedSalon) return null;
+            const entries = getQuickNavEntries();
+            const exactMatches = entries.filter(entry => {
+                const entrySalon = String(entry.salon || '').trim().toLowerCase();
+                if (entrySalon !== expectedSalon) return false;
+                if (expectedGrado && String(entry.grado || '').trim().toLowerCase() && String(entry.grado || '').trim().toLowerCase() !== expectedGrado) {
+                    return false;
+                }
+                return true;
+            });
+            if (exactMatches.length) {
+                return exactMatches.sort((a, b) => {
+                    const aGrade = String(a.grado || '').trim().toLowerCase() === expectedGrado ? 0 : 1;
+                    const bGrade = String(b.grado || '').trim().toLowerCase() === expectedGrado ? 0 : 1;
+                    return aGrade - bGrade;
+                })[0];
+            }
+            return entries.find(entry => String(entry.salon || '').trim().toLowerCase() === expectedSalon) || null;
+        }
+
+        function getQuickNavEntries() {
+            const entries = [];
+            panoramas.forEach(pano => {
+                (pano.hotspots || []).forEach(hs => {
+                    if (!hs) return;
+                    const label = String(hs.profesor || hs.grado || hs.salon || hs.title || hs.titulo || '').trim();
+                    if (!label) return;
+                    entries.push({
+                        id: hs.id || `${pano.id}-${hs.pitch}-${hs.yaw}`,
+                        panoId: pano.id,
+                        sourceImage: hs.sourceImage || pano.id,
+                        type: hs.type,
+                        profesor: hs.profesor || '',
+                        grado: hs.grado || '',
+                        salon: hs.salon || '',
+                        title: hs.title || hs.titulo || label,
+                        dia: hs.dia || '',
+                        horaInicio: hs.horaInicio || '',
+                        horaFin: hs.horaFin || ''
+                    });
+                });
+                (pano.labels || []).forEach(label => {
+                    if (!label || !label.text) return;
+                    entries.push({
+                        id: label.id || `${pano.id}-label-${Math.random().toString(16).slice(2)}`,
+                        panoId: pano.id,
+                        sourceImage: pano.id,
+                        type: 'label',
+                        profesor: label.profesor || '',
+                        grado: label.grado || '',
+                        salon: label.salon || '',
+                        title: String(label.text || label.titulo || '').trim(),
+                        dia: label.dia || '',
+                        horaInicio: label.horaInicio || '',
+                        horaFin: label.horaFin || ''
+                    });
+                });
+                (pano.alerts || []).forEach(alert => {
+                    if (!alert) return;
+                    const title = String(alert.title || alert.titulo || alert.profesor || alert.grado || alert.salon || 'Aviso').trim();
+                    if (!title) return;
+                    const isSimplePlace = alert.alertMode === 'simple' || alert.type === 'simple-alert';
+                    entries.push({
+                        id: alert.id || `${pano.id}-alert-${Math.random().toString(16).slice(2)}`,
+                        panoId: pano.id,
+                        sourceImage: pano.id,
+                        type: isSimplePlace ? 'simple-alert' : 'alert',
+                        profesor: isSimplePlace ? '' : (alert.profesor || ''),
+                        grado: isSimplePlace ? '' : (alert.grado || ''),
+                        salon: isSimplePlace ? '' : (alert.salon || ''),
+                        title: isSimplePlace ? title : title,
+                        dia: alert.dia || '',
+                        horaInicio: alert.horaInicio || '',
+                        horaFin: alert.horaFin || ''
+                    });
+                });
+            });
+
+            lugaresBaseDeDatos.forEach(lugar => {
+                const title = String(lugar.titulo || '').trim();
+                if (!title) return;
+                entries.push({
+                    id: `db-lugar-${lugar.id_lugar || title}`,
+                    panoId: lugar.panorama_id || panoramas[0]?.id || currentPano?.id || '',
+                    sourceImage: lugar.panorama_id || panoramas[0]?.id || currentPano?.id || '',
+                    type: 'database-place',
+                    profesor: lugar.profesor || '',
+                    grado: lugar.grado || '',
+                    salon: lugar.salon || '',
+                    title,
+                    dia: '',
+                    horaInicio: '',
+                    horaFin: ''
+                });
+            });
+            return entries;
+        }
+
+        function populateQuickNavOptions() {
+            const category = document.getElementById('quick-nav-category')?.value || 'grado';
+            const target = document.getElementById('quick-nav-target');
+            if (!target) return;
+            const entries = getQuickNavEntries();
+            const values = new Set();
+
+            if (category === 'grado') {
+                horariosColegio.forEach(horario => {
+                    const value = String(horario.grado || '').trim();
+                    if (value) values.add(value);
+                });
+            }
+
+            if (category === 'lugar') {
+                const nombresFijos = [
+                    'Transición',
+                    'Tienda',
+                    'Sala de profesores',
+                    'Restaurante',
+                    'Canchas',
+                    'Coordinación',
+                    'Cafetería',
+                    'Biblioteca',
+                    'Baños y aseo'
+                ];
+                nombresFijos.forEach(value => values.add(value));
+            } else {
+                entries.forEach(entry => {
+                    if (category === 'profesor' && (entry.type === 'database-place' || entry.type === 'simple-alert')) return;
+                    const value = category === 'grado' ? entry.grado : category === 'salon' ? entry.salon : category === 'profesor' ? entry.profesor : entry.title;
+                    if (value && String(value).trim()) values.add(String(value).trim());
+                });
+            }
+            const list = [...values].sort((a, b) => a.localeCompare(b, 'es'));
+            target.innerHTML = '<option value="">Selecciona una opción</option>';
+            list.forEach(value => {
+                const option = document.createElement('option');
+                option.value = value;
+                option.textContent = value;
+                target.appendChild(option);
+            });
+        }
+
+        function buscarUbicacionEnMenuVista() {
+            const category = document.getElementById('quick-nav-category')?.value || 'grado';
+            const target = document.getElementById('quick-nav-target');
+            const status = document.getElementById('quick-nav-status');
+            const selectedValue = target ? target.value.trim() : '';
+            const selectedDay = getDayNameFromCurrentCalendar();
+            const selectedMinutes = getMinutesFromCurrentCalendar();
+            if (!selectedValue) {
+                if (status) status.textContent = 'Elige una opción del menú de vista.';
+                return;
+            }
+
+            if (category === 'grado') {
+                const descanso = getGradoBreakStatus(selectedValue, calendarioHora || document.getElementById('weekly-calendar-time')?.value || '');
+                if (descanso) {
+                    if (status) status.textContent = `El grado ${selectedValue} está en descanso de ${descanso.inicio} hasta ${descanso.fin}.`;
+                    return;
+                }
+
+                const horarioGrado = getHorarioCoincidentePorGrado(selectedValue, selectedDay, calendarioHora || document.getElementById('weekly-calendar-time')?.value || '');
+                if (horarioGrado) {
+                    const salon = String(horarioGrado.salon || '').trim();
+                    if (salon) {
+                        const salonMatch = findBestSalonMatch(salon, selectedValue);
+                        if (salonMatch) {
+                            const destino = panoramas.find(p => p.id === salonMatch.panoId) || panoramas.find(p => p.id === salonMatch.sourceImage);
+                            if (destino) {
+                                clearActiveRoute();
+                                currentPano = destino;
+                                selectedHS = null;
+                                if (status) status.textContent = `Has llegado al salón ${salon} del grado ${selectedValue}.`;
+                                init();
+                                updateSourceLabel();
+                                renderMiniMap();
+                                renderMapGuide();
+                                return;
+                            }
+                        }
+                        if (status) status.textContent = `El grado ${selectedValue} está programado en el salón ${salon}, pero aún no tiene una ubicación marcada.`;
+                        return;
+                    }
+                }
+
+                clearActiveRoute();
+                const horaTexto = calendarioHora || document.getElementById('weekly-calendar-time')?.value || '';
+                const message = getMensajeSinClaseParaGrado(selectedValue, selectedDay, horaTexto);
+                if (status) status.textContent = message;
+                mostrarAlertaHorario(message);
+                return;
+            }
+
+            const matches = getQuickNavEntries().filter(entry => {
+                if (category === 'profesor' && (entry.type === 'database-place' || entry.type === 'simple-alert')) return false;
+                const value = category === 'grado' ? entry.grado : category === 'salon' ? entry.salon : category === 'profesor' ? entry.profesor : entry.title;
+                if (!value || String(value).trim().toLowerCase() !== String(selectedValue).trim().toLowerCase()) return false;
+                if (!entry.dia && !entry.horaInicio && !entry.horaFin) return true;
+                if (!selectedDay && selectedMinutes === null) return true;
+                const entryDay = String(entry.dia || '').trim();
+                const start = getMinutesFromTime(entry.horaInicio || '');
+                const end = getMinutesFromTime(entry.horaFin || '');
+                if (!entryDay && start === null && end === null) return true;
+                if (!entryDay) return true;
+                if (selectedDay && diaNormalizado(entryDay) !== diaNormalizado(selectedDay)) return false;
+                if (selectedMinutes !== null && start !== null && end !== null) {
+                    return selectedMinutes >= start && selectedMinutes <= end;
+                }
+                return true;
+            });
+
+            const match = matches[0] || getQuickNavEntries().find(entry => {
+                if (category === 'profesor' && (entry.type === 'database-place' || entry.type === 'simple-alert')) return false;
+                const value = category === 'grado' ? entry.grado : category === 'salon' ? entry.salon : category === 'profesor' ? entry.profesor : entry.title;
+                return value && String(value).trim().toLowerCase() === String(selectedValue).trim().toLowerCase();
+            });
+
+            if (!match) {
+                if (status) status.textContent = 'No se encontró esa opción con la fecha y hora actuales.';
+                return;
+            }
+
+            const destino = panoramas.find(p => p.id === match.panoId) || panoramas.find(p => p.id === match.sourceImage);
+            if (!destino) {
+                if (status) status.textContent = 'No se pudo ubicar esa referencia en el mapa.';
+                return;
+            }
+            clearActiveRoute();
+            currentPano = destino;
+            selectedHS = null;
+            if (status) status.textContent = `Has llegado a ${destino.title || destino.id}.`;
+            init();
+            updateSourceLabel();
+            renderMiniMap();
+            renderMapGuide();
+        }
+
+        function rutaDesdeMenuVista() {
+            const category = document.getElementById('quick-nav-category')?.value || 'grado';
+            const target = document.getElementById('quick-nav-target');
+            const status = document.getElementById('quick-nav-status');
+            const selectedValue = target ? target.value.trim() : '';
+            const selectedDay = getDayNameFromCurrentCalendar();
+            const selectedMinutes = getMinutesFromCurrentCalendar();
+            if (!selectedValue) {
+                if (status) status.textContent = 'Elige una opción para trazar la ruta.';
+                return;
+            }
+
+            if (category === 'grado') {
+                const descanso = getGradoBreakStatus(selectedValue, calendarioHora || document.getElementById('weekly-calendar-time')?.value || '');
+                if (descanso) {
+                    clearActiveRoute();
+                    const message = `El grado ${selectedValue} está en descanso de ${descanso.inicio} hasta ${descanso.fin}.`;
+                    if (status) status.textContent = message;
+                    mostrarAlertaHorario(message);
+                    return;
+                }
+
+                const horarioGrado = getHorarioCoincidentePorGrado(selectedValue, selectedDay, calendarioHora || document.getElementById('weekly-calendar-time')?.value || '');
+                if (horarioGrado) {
+                    const salon = String(horarioGrado.salon || '').trim();
+                    if (salon) {
+                        const salonMatch = findBestSalonMatch(salon, selectedValue);
+                        if (salonMatch) {
+                            const destino = panoramas.find(p => p.id === salonMatch.panoId) || panoramas.find(p => p.id === salonMatch.sourceImage);
+                            if (destino) {
+                                routeTargetId = destino.id;
+                                document.getElementById('route-destination').value = destino.id;
+                                showRoute();
+                                renderMiniMap();
+                                updateLeafletMiniMap();
+                                renderMapGuide();
+                                if (status) status.textContent = `Ruta hacia el salón ${salon} del grado ${selectedValue}.`;
+                                return;
+                            }
+                        }
+                        if (status) status.textContent = `El grado ${selectedValue} está programado en el salón ${salon}, pero no hay una ubicación marcada para esa ruta.`;
+                        return;
+                    }
+                }
+
+                clearActiveRoute();
+                const horaTexto = calendarioHora || document.getElementById('weekly-calendar-time')?.value || '';
+                const message = getMensajeSinClaseParaGrado(selectedValue, selectedDay, horaTexto);
+                if (status) status.textContent = message;
+                mostrarAlertaHorario(message);
+                return;
+            }
+
+            const matches = getQuickNavEntries().filter(entry => {
+                if (category === 'profesor' && (entry.type === 'database-place' || entry.type === 'simple-alert')) return false;
+                const value = category === 'grado' ? entry.grado : category === 'salon' ? entry.salon : category === 'profesor' ? entry.profesor : entry.title;
+                if (!value || String(value).trim().toLowerCase() !== String(selectedValue).trim().toLowerCase()) return false;
+                if (!entry.dia && !entry.horaInicio && !entry.horaFin) return true;
+                const entryDay = String(entry.dia || '').trim();
+                const start = getMinutesFromTime(entry.horaInicio || '');
+                const end = getMinutesFromTime(entry.horaFin || '');
+                if (!entryDay) return true;
+                if (selectedDay && diaNormalizado(entryDay) !== diaNormalizado(selectedDay)) return false;
+                if (selectedMinutes !== null && start !== null && end !== null) {
+                    return selectedMinutes >= start && selectedMinutes <= end;
+                }
+                return true;
+            });
+
+            const match = matches[0] || getQuickNavEntries().find(entry => {
+                if (category === 'profesor' && (entry.type === 'database-place' || entry.type === 'simple-alert')) return false;
+                const value = category === 'grado' ? entry.grado : category === 'salon' ? entry.salon : category === 'profesor' ? entry.profesor : entry.title;
+                return value && String(value).trim().toLowerCase() === String(selectedValue).trim().toLowerCase();
+            });
+
+            if (!match) {
+                if (status) status.textContent = 'No se encontró una ubicación para esta búsqueda.';
+                return;
+            }
+
+            const destino = panoramas.find(p => p.id === match.panoId) || panoramas.find(p => p.id === match.sourceImage);
+            if (!destino) {
+                if (status) status.textContent = 'No se pudo crear la ruta.';
+                return;
+            }
+
+            routeTargetId = destino.id;
+            document.getElementById('route-destination').value = destino.id;
+            showRoute();
+            renderMiniMap();
+            updateLeafletMiniMap();
+            renderMapGuide();
+            if (status) status.textContent = `Ruta hacia ${selectedValue} en ${destino.title || destino.id}.`;
+        }
+
+        function irAlDestinoSeleccionado() {
+            buscarUbicacionEnMenuVista();
+        }
+
+        function rutaAlDestinoSeleccionado() {
+            rutaDesdeMenuVista();
+        }
+
+        function llenarMenuNavegacion() {
+            const toggle = document.getElementById('btn-toggle-quick-nav');
+            const panel = document.getElementById('quick-nav-panel');
+            if (toggle) {
+                toggle.onclick = () => {
+                    if (!panel) return;
+                    const isCollapsed = panel.classList.toggle('collapsed');
+                    toggle.textContent = isCollapsed ? '☰ Mostrar menú de vista' : '☰ Ocultar menú de vista';
+                };
+            }
+            const category = document.getElementById('quick-nav-category');
+            if (category) {
+                category.onchange = () => {
+                    if (category.value === 'lugar' && !lugaresBaseDeDatos.length) {
+                        cargarLugaresDesdeBaseDeDatos().then(populateQuickNavOptions);
+                    }
+                    populateQuickNavOptions();
+                };
+            }
+            populateQuickNavOptions();
+            const target = document.getElementById('quick-nav-target');
+            if (target) target.onchange = () => {
+                const status = document.getElementById('quick-nav-status');
+                if (status) status.textContent = '';
+                if (target.value) rutaDesdeMenuVista();
+            };
+            const goBtn = document.getElementById('btn-go-to-location');
+            if (goBtn) goBtn.onclick = buscarUbicacionEnMenuVista;
+            const routeBtn = document.getElementById('btn-route-to-location');
+            if (routeBtn) routeBtn.onclick = rutaDesdeMenuVista;
+        }
+
+        document.onpointermove = (e) => {
+            if (rotateDragging && selectedHS) {
+                const dx = e.clientX - rotateStartX;
+                const sensitivity = 0.6;
+                selectedHS.rotate = (rotateStartRotate + dx * sensitivity) % 360;
+                if (selectedHS.rotate < 0) selectedHS.rotate += 360;
+                renderHS();
+                syncMenu();
+                markDirty();
+                return;
+            }
+
+            if (draggingAlert) {
+                const alert = (currentPano.alerts || []).find(item => item.id === draggingAlert.id);
+                const element = draggingAlert.element;
+                const container = document.getElementById('panorama-container');
+                if (!alert || !element || !container) return;
+
+                // Durante el arrastre solo movemos el elemento en pantalla.
+                // Así el signo sigue al cursor con libertad, sin que Pannellum lo recoloque en cada frame.
+                const rect = container.getBoundingClientRect();
+                const x = Math.max(14, Math.min(rect.width - 14, e.clientX - rect.left));
+                const y = Math.max(14, Math.min(rect.height - 14, e.clientY - rect.top));
+                element.style.left = `${x}px`;
+                element.style.top = `${y}px`;
+                element.style.transform = 'translate(-50%, -50%)';
+                draggingAlert.lastClientX = rect.left + x;
+                draggingAlert.lastClientY = rect.top + y;
+                // Igual que las flechas, convertimos cada posición del cursor a pitch/yaw
+                // usando el visor 360. El modelo queda actualizado antes de soltar.
+                if (viewer && viewer.mouseEventToCoords) {
+                    const visualEvent = {
+                        clientX: rect.left + x,
+                        clientY: rect.top + y,
+                        target: container,
+                        currentTarget: container
+                    };
+                    const liveCoords = viewer.mouseEventToCoords(visualEvent);
+                    if (liveCoords) {
+                        draggingAlert.lastCoords = [Number(liveCoords[0]), Number(liveCoords[1])];
+                        alert.pitch = draggingAlert.lastCoords[0];
+                        alert.yaw = draggingAlert.lastCoords[1];
+                        alert.x = alert.yaw;
+                        alert.y = alert.pitch;
+                    }
+                }
+                if (!draggingAlert.moved) {
+                    draggingAlert.moved = true;
+                    suppressAlertClick = true;
+                }
+                return;
+            }
+
+            if (!isDragging || !draggingHS) return;
+            const coords = viewer.mouseEventToCoords(e);
+            if (!coords) return;
+            draggingHS.pitch = coords[0];
+            draggingHS.yaw = coords[1];
+            renderHS();
+            syncMenu();
+            markDirty();
+        };
+
+        document.onpointerup = (e) => {
+            if (draggingAlert) {
+                const draggedAlert = draggingAlert;
+                const alert = (currentPano.alerts || []).find(item => item.id === draggedAlert.id);
+                // La última conversión tomada durante el movimiento es la posición real de soltado.
+                // Usamos el evento final solo como respaldo, porque el hotspot puede desaparecer
+                // temporalmente al liberar el puntero.
+                const finalEvent = {
+                    clientX: e.clientX ?? draggedAlert.lastClientX,
+                    clientY: e.clientY ?? draggedAlert.lastClientY,
+                    target: document.getElementById('panorama-container'),
+                    currentTarget: document.getElementById('panorama-container')
+                };
+                if (alert && draggedAlert.moved) {
+                    const coords = draggedAlert.lastCoords || (viewer && viewer.mouseEventToCoords ? viewer.mouseEventToCoords(finalEvent) : null);
+                    if (coords) {
+                        alert.pitch = Number(coords[0]);
+                        alert.yaw = Number(coords[1]);
+                        alert.x = alert.yaw;
+                        alert.y = alert.pitch;
+                        markDirty();
+                    }
+                }
+                draggedAlert.element?.classList.remove('is-dragging');
+                draggingAlert = null;
+                if (draggedAlert.moved) {
+                    suppressAlertClick = true;
+                    renderAlerts();
+                    window.setTimeout(() => { suppressAlertClick = false; }, 0);
+                }
+                return;
+            }
+            if(isDragging) { isDragging = false; draggingHS = null; }
+            if(rotateDragging) { rotateDragging = false; }
+        };
+
+        function syncMenu() {
+            if (selectedHS) {
+                document.getElementById('select-target').value = selectedHS.targetId;
+                document.getElementById('select-direction').value = selectedHS.direction || 'forward';
+                document.getElementById('select-color').value = selectedHS.color;
+                document.getElementById('range-rot').value = selectedHS.rotate;
+                document.getElementById('range-tilt').value = selectedHS.tilt;
+                document.getElementById('range-w').value = selectedHS.w;
+                document.getElementById('range-h').value = selectedHS.h;
+                
+                document.getElementById('val-rot').textContent = selectedHS.rotate + "°";
+                document.getElementById('val-tilt').textContent = selectedHS.tilt + "°";
+                document.getElementById('val-w').textContent = selectedHS.w + "px";
+                document.getElementById('val-h').textContent = selectedHS.h + "px";
+            }
+            const initialViewLabel = document.getElementById('initial-view-label');
+            if (initialViewLabel) {
+                initialViewLabel.textContent = `Adelante: ${Math.round(currentPano.forwardYaw)}° · Atrás: ${Math.round(currentPano.backwardYaw)}° · Izquierda: ${Math.round(currentPano.leftYaw)}° · Derecha: ${Math.round(currentPano.rightYaw)}°`;
+            }
+        }
+
+        document.getElementById('range-rot').oninput = (e) => { if(selectedHS) { selectedHS.rotate = Number(e.target.value); renderHS(); syncMenu(); markDirty(); } };
+        document.getElementById('range-tilt').oninput = (e) => { if(selectedHS) { selectedHS.tilt = Number(e.target.value); renderHS(); syncMenu(); markDirty(); } };
+        document.getElementById('range-w').oninput = (e) => { if(selectedHS) { selectedHS.w = Number(e.target.value); renderHS(); syncMenu(); markDirty(); } };
+        document.getElementById('range-h').oninput = (e) => { if(selectedHS) { selectedHS.h = Number(e.target.value); renderHS(); syncMenu(); markDirty(); } };
+        
+        document.getElementById('btn-add').onclick = () => {
+            hotspotPlacementType = 'arrow';
+            addHS(viewer.getPitch(), viewer.getYaw(), 'arrow');
+        };
+        document.getElementById('btn-add-circle').onclick = (event) => {
+            hotspotPlacementType = hotspotPlacementType === 'circle' ? 'arrow' : 'circle';
+            event.currentTarget.classList.toggle('active', hotspotPlacementType === 'circle');
+            event.currentTarget.textContent = hotspotPlacementType === 'circle' ? '🟢 Doble clic para colocar círculo' : '🟢 Crear círculo (doble clic)';
+        };
+        document.getElementById('btn-add-exclamation').onclick = (event) => {
+            hotspotPlacementType = hotspotPlacementType === 'exclamation' ? 'arrow' : 'exclamation';
+            event.currentTarget.classList.toggle('active', hotspotPlacementType === 'exclamation');
+            event.currentTarget.textContent = hotspotPlacementType === 'exclamation' ? '❗ Doble clic para colocar signo' : '❗ Crear exclamación (doble clic)';
+        };
+        document.getElementById('btn-set-forward-view').onclick = () => {
+            currentPano.forwardYaw = viewer.getYaw();
+            currentPano.forwardPitch = viewer.getPitch();
+            syncMenu();
+            markDirty();
+        };
+        document.getElementById('btn-set-backward-view').onclick = () => {
+            currentPano.backwardYaw = viewer.getYaw();
+            currentPano.backwardPitch = viewer.getPitch();
+            syncMenu();
+            markDirty();
+        };
+        document.getElementById('btn-set-left-view').onclick = () => {
+            currentPano.leftYaw = viewer.getYaw();
+            currentPano.leftPitch = viewer.getPitch();
+            syncMenu();
+            markDirty();
+        };
+        document.getElementById('btn-set-right-view').onclick = () => {
+            currentPano.rightYaw = viewer.getYaw();
+            currentPano.rightPitch = viewer.getPitch();
+            syncMenu();
+            markDirty();
+        };
+        document.getElementById('btn-del').onclick = () => { if(selectedHS) { currentPano.hotspots = currentPano.hotspots.filter(h => h !== selectedHS); selectedHS = null; renderHS(); markDirty(); } };
+        document.getElementById('select-target').onchange = (e) => { if(selectedHS) { selectedHS.targetId = e.target.value; markDirty(); } };
+        document.getElementById('select-direction').onchange = (e) => { if(selectedHS) { selectedHS.direction = e.target.value; renderHS(); syncMenu(); markDirty(); } };
+        document.getElementById('select-color').onchange = (e) => { if(selectedHS) { selectedHS.color = e.target.value; renderHS(); markDirty(); } };
+                function svgElement(name, attrs = {}) {
+            const element = document.createElementNS('http://www.w3.org/2000/svg', name);
+            Object.entries(attrs).forEach(([key, value]) => element.setAttribute(key, value));
+            return element;
+        }
+
+        function mapPointFromEvent(event) {
+            const layer = document.getElementById('mapa-google-layer');
+            const rect = layer.getBoundingClientRect();
+            const surface = document.getElementById('mapa-google-surface');
+            const surfaceRect = surface ? surface.getBoundingClientRect() : rect;
+            let x = Math.max(0, Math.min(100, ((event.clientX - surfaceRect.left) / surfaceRect.width) * 100));
+            let y = Math.max(0, Math.min(100, ((event.clientY - surfaceRect.top) / surfaceRect.height) * 100));
+            if (document.getElementById('map-snap-grid')?.checked) { x = Math.round(x / 5) * 5; y = Math.round(y / 5) * 5; }
+            return { x, y };
+        }
+
+        function getMapPointsForPanoramaId(id) {
+            if (!id) return [];
+            const advancePoints = minimapAdvancePoints
+                .filter(point => point.panoId === id && Number.isFinite(Number(point.x)) && Number.isFinite(Number(point.y)))
+                .map(point => ({ x: Number(point.x), y: Number(point.y) }));
+            if (advancePoints.length) {
+                return advancePoints.filter((point, index, points) => points.findIndex(other =>
+                    Math.abs(other.x - point.x) < 0.001 && Math.abs(other.y - point.y) < 0.001
+                ) === index);
+            }
+            const panoramaPoint = mapGuide.panoramaPositions && mapGuide.panoramaPositions[id];
+            if (panoramaPoint && Number.isFinite(Number(panoramaPoint.x)) && Number.isFinite(Number(panoramaPoint.y))) {
+                return [{ x: Number(panoramaPoint.x), y: Number(panoramaPoint.y) }];
+            }
+            return [];
+        }
+
+        function buildRouteLinePoints(startPoint, targetPoint) {
+            const routeIds = [currentPano?.id, ...routePath.map(step => step.toId)].filter(Boolean);
+            if (routeTargetId && routeIds[routeIds.length - 1] !== routeTargetId) routeIds.push(routeTargetId);
+
+            const pointGroups = [[{ x: Number(startPoint.x), y: Number(startPoint.y) }]];
+            routeIds.slice(1).forEach(id => {
+                const points = getMapPointsForPanoramaId(id);
+                if (points.length) pointGroups.push(points);
+            });
+            const targetIsMapped = pointGroups[pointGroups.length - 1].some(point =>
+                Math.abs(point.x - Number(targetPoint.x)) < 0.001 && Math.abs(point.y - Number(targetPoint.y)) < 0.001
+            );
+            if (!targetIsMapped) pointGroups.push([{ x: Number(targetPoint.x), y: Number(targetPoint.y) }]);
+
+            if (pointGroups.length > 1) {
+                const routePoints = [pointGroups[0][0]];
+                pointGroups.slice(1).forEach(group => {
+                    const previousPoint = routePoints[routePoints.length - 1];
+                    const nearestPoint = group.reduce((nearest, point) =>
+                        Math.hypot(point.x - previousPoint.x, point.y - previousPoint.y) <
+                        Math.hypot(nearest.x - previousPoint.x, nearest.y - previousPoint.y) ? point : nearest
+                    );
+                    routePoints.push(nearestPoint);
+                });
+                const cleaned = routePoints.filter((point, index) => index === 0 ||
+                    Math.abs(point.x - routePoints[index - 1].x) > 0.001 || Math.abs(point.y - routePoints[index - 1].y) > 0.001
+                );
+                if (cleaned.length > 1) {
+                    const connected = [cleaned[0]];
+                    cleaned.slice(1).forEach(point => {
+                        const previous = connected[connected.length - 1];
+                        const gap = Math.hypot(point.x - previous.x, point.y - previous.y);
+                        const segment = gap > 12 ? buildGraphRoutePoints(previous, point) : [previous, point];
+                        segment.slice(1).forEach(segmentPoint => connected.push(segmentPoint));
+                    });
+                    return connected;
+                }
+            }
+
+            return buildGraphRoutePoints(startPoint, targetPoint);
+        }
+
+        function buildGraphRoutePoints(startPoint, targetPoint) {
+            const nodes = [];
+            const addNode = (id, point) => {
+                if (!point || !Number.isFinite(Number(point.x)) || !Number.isFinite(Number(point.y))) return null;
+                const x = Number(point.x);
+                const y = Number(point.y);
+                const key = `${x.toFixed(3)}:${y.toFixed(3)}`;
+                const existing = nodes.find(node => node.key === key);
+                if (existing) return existing.id;
+                nodes.push({ id, key, x, y });
+                return id;
+            };
+
+            const startId = addNode('start', startPoint);
+            minimapAdvancePoints.forEach((point, index) => addNode(`advance:${index}`, { x: Number(point.x), y: Number(point.y) }));
+            Object.entries(mapGuide.panoramaPositions || {}).forEach(([id, position]) => addNode(`pano:${id}`, position));
+            const targetId = addNode('target', targetPoint);
+
+            if (!nodes.length || startId === null || targetId === null) return [{ ...startPoint }, { ...targetPoint }];
+            if (startId === targetId) return [{ ...startPoint }, { ...targetPoint }];
+
+            const distance = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+            const maxEdgeDistance = 12;
+            const graph = new Map(nodes.map(node => [node.id, []]));
+            nodes.forEach((node, index) => {
+                nodes.slice(index + 1).forEach(other => {
+                    const cost = distance(node, other);
+                    if (cost <= 0 || cost > maxEdgeDistance) return;
+                    graph.get(node.id).push({ id: other.id, cost });
+                    graph.get(other.id).push({ id: node.id, cost });
+                });
+            });
+            const dist = new Map(nodes.map(node => [node.id, Number.POSITIVE_INFINITY]));
+            const previous = new Map();
+            const visited = new Set();
+            dist.set(startId, 0);
+
+            while (visited.size < nodes.length) {
+                let currentId = null;
+                let currentDist = Number.POSITIVE_INFINITY;
+                for (const [id, value] of dist.entries()) {
+                    if (visited.has(id)) continue;
+                    if (value < currentDist) {
+                        currentDist = value;
+                        currentId = id;
+                    }
+                }
+                if (currentId == null) break;
+                if (currentId === targetId) break;
+                visited.add(currentId);
+
+                for (const neighbor of graph.get(currentId) || []) {
+                    if (visited.has(neighbor.id)) continue;
+                    const next = currentDist + neighbor.cost;
+                    if (next < (dist.get(neighbor.id) ?? Number.POSITIVE_INFINITY)) {
+                        dist.set(neighbor.id, next);
+                        previous.set(neighbor.id, currentId);
+                    }
+                }
+            }
+
+            if ((dist.get(targetId) ?? Number.POSITIVE_INFINITY) === Number.POSITIVE_INFINITY) {
+                return [{ ...startPoint }, { ...targetPoint }];
+            }
+
+            const pathIds = [];
+            let cursor = targetId;
+            while (cursor) {
+                pathIds.unshift(cursor);
+                if (cursor === startId) break;
+                cursor = previous.get(cursor) ?? null;
+            }
+
+            const nodeById = new Map(nodes.map(node => [node.id, node]));
+            const pathPoints = pathIds
+                .map(id => nodeById.get(id))
+                .filter(Boolean)
+                .map(node => ({ x: node.x, y: node.y }));
+
+            const cleaned = [pathPoints[0]].filter(Boolean);
+            pathPoints.slice(1).forEach(point => {
+                const last = cleaned[cleaned.length - 1];
+                if (!last || Math.abs(point.x - last.x) > 0.001 || Math.abs(point.y - last.y) > 0.001) {
+                    cleaned.push(point);
+                }
+            });
+
+            if (!cleaned.some(point => Math.abs(point.x - targetPoint.x) < 0.001 && Math.abs(point.y - targetPoint.y) < 0.001)) {
+                cleaned.push({ ...targetPoint });
+            }
+            if (!cleaned.some(point => Math.abs(point.x - startPoint.x) < 0.001 && Math.abs(point.y - startPoint.y) < 0.001)) {
+                cleaned.unshift({ ...startPoint });
+            }
+
+            return cleaned;
+        }
+
+        function renderMapGuide() {
+            const content = document.getElementById('map-guide-content');
+            const grid = document.getElementById('map-guide-grid');
+            if (!content) return;
+            content.innerHTML = '';
+            if (grid) grid.setAttribute('visibility', document.getElementById('map-grid-visible')?.checked ? 'visible' : 'hidden');
+            if (mapGuide.layers.paths) {
+                mapGuide.paths.forEach(path => { const isStreet = path.shape !== 'line'; const element = svgElement('polyline', { points: path.points.map(p => `${p.x},${p.y}`).join(' '), fill: 'none', stroke: isStreet ? (path.color || '#ffffff') : (path.color || '#1677e8'), 'stroke-width': path.thickness || (isStreet ? 7 : 2.2), 'stroke-linecap': isStreet ? 'butt' : 'round', 'stroke-linejoin': isStreet ? 'miter' : 'round', 'data-kind': 'path' }); element.addEventListener('click', event => { event.stopPropagation(); selectMapElement({ kind: 'path', item: path }); }); content.appendChild(element); if (selectedMapElement?.kind === 'path' && selectedMapElement.item === path) path.points.forEach((point, index) => { const handle = svgElement('circle', { cx: point.x, cy: point.y, r: 1.8, fill: '#ffffff', stroke: '#1677e8', 'stroke-width': .8 }); handle.addEventListener('pointerdown', event => { event.stopPropagation(); draggingPathPoint = { path, index }; }); handle.addEventListener('click', event => event.stopPropagation()); content.appendChild(handle); }); });
+                if (draftPath.length > 0) content.appendChild(svgElement('polyline', { points: draftPath.map(p => `${p.x},${p.y}`).join(' '), fill: 'none', stroke: '#ffffff', 'stroke-width': 7, 'stroke-linecap': 'butt', 'stroke-linejoin': 'miter', 'stroke-dasharray': '3 2' }));
+            }
+            if (mapGuide.layers.zones) mapGuide.zones.forEach(zone => {
+                const shape = zone.shape === 'circle' ? svgElement('ellipse', { cx: zone.x, cy: zone.y, rx: zone.w / 2, ry: zone.h / 2, fill: zone.color || '#dc3545', 'fill-opacity': zone.opacity || '.35', stroke: zone.color || '#b42318', 'stroke-width': 1 }) : zone.shape === 'semicircle' ? svgElement('path', { d: `M ${zone.x-zone.w/2} ${zone.y+zone.h/2} A ${zone.w/2} ${zone.h/2} 0 0 1 ${zone.x+zone.w/2} ${zone.y+zone.h/2} L ${zone.x-zone.w/2} ${zone.y+zone.h/2} Z`, fill: zone.color || '#dc3545', 'fill-opacity': zone.opacity || '.35', stroke: zone.color || '#b42318', 'stroke-width': 1 }) : zone.shape === 'diamond' ? svgElement('polygon', { points: `${zone.x},${zone.y-zone.h/2} ${zone.x+zone.w/2},${zone.y} ${zone.x},${zone.y+zone.h/2} ${zone.x-zone.w/2},${zone.y}`, fill: zone.color || '#dc3545', 'fill-opacity': zone.opacity || '.35', stroke: zone.color || '#b42318', 'stroke-width': 1 }) : svgElement('rect', { x: zone.x - zone.w / 2, y: zone.y - zone.h / 2, width: zone.w, height: zone.h, rx: 1, fill: zone.color || '#dc3545', 'fill-opacity': zone.opacity || '.35', stroke: zone.color || '#b42318', 'stroke-width': 1 });
+                shape.addEventListener('click', event => { event.stopPropagation(); selectMapElement({ kind: 'zone', item: zone }); }); content.appendChild(shape);
+                const label = svgElement('text', { x: zone.x, y: zone.y, 'text-anchor': 'middle', 'font-size': 3.2, fill: '#7f1d1d', 'font-weight': 'bold' }); label.textContent = zone.name; content.appendChild(label);
+            });
+            if (mapGuide.layers.places) mapGuide.places.forEach(place => {
+                const w = place.w || 7, h = place.h || 7;
+                const shape = place.shape === 'rect' ? svgElement('rect', { x: place.x - w/2, y: place.y - h/2, width: w, height: h, fill: place.color || (place.type === 'Aula' ? '#2563c7' : '#f59e0b'), stroke: '#fff', 'stroke-width': .7 }) : place.shape === 'semicircle' ? svgElement('path', { d: `M ${place.x-w/2} ${place.y+h/2} A ${w/2} ${h/2} 0 0 1 ${place.x+w/2} ${place.y+h/2} L ${place.x-w/2} ${place.y+h/2} Z`, fill: place.color || (place.type === 'Aula' ? '#2563c7' : '#f59e0b'), stroke: '#fff', 'stroke-width': .7 }) : place.shape === 'diamond' ? svgElement('polygon', { points: `${place.x},${place.y-h/2} ${place.x+w/2},${place.y} ${place.x},${place.y+h/2} ${place.x-w/2},${place.y}`, fill: place.color || (place.type === 'Aula' ? '#2563c7' : '#f59e0b'), stroke: '#fff', 'stroke-width': .7 }) : svgElement('circle', { cx: place.x, cy: place.y, r: Math.min(w, h)/2, fill: place.color || (place.type === 'Aula' ? '#2563c7' : '#f59e0b'), stroke: '#fff', 'stroke-width': .7 });
+                shape.addEventListener('click', event => { event.stopPropagation(); selectMapElement({ kind: 'place', item: place }); }); content.appendChild(shape);
+                const label = svgElement('text', { x: place.x, y: place.y - h/2 - 1, 'text-anchor': 'middle', 'font-size': 3.2, fill: '#111827', 'font-weight': 'bold' }); label.textContent = place.name; content.appendChild(label);
+            });
+            Object.entries(mapGuide.panoramaPositions || {}).forEach(([id, position]) => {
+                const panorama = panoramas.find(item => item.id === id);
+                if (!panorama) return;
+                const marker = svgElement('circle', { cx: position.x, cy: position.y, r: 2.2, fill: '#7c3aed', stroke: '#ffffff', 'stroke-width': .8 });
+                marker.addEventListener('click', event => {
+                    event.stopPropagation();
+                    currentPano = panorama;
+                    selectedHS = null;
+                    init();
+                    updateSourceLabel();
+                });
+                content.appendChild(marker);
+                const label = svgElement('text', { x: position.x, y: position.y - 3, 'text-anchor': 'middle', 'font-size': 3, fill: '#4c1d95', 'font-weight': 'bold' });
+                label.textContent = panorama.title || id;
+                content.appendChild(label);
+            });
+
+            const targetId = routeTargetId;
+            if (!targetId || !minimapIndicator) return;
+
+            const targetPoint = getMapPointsForPanoramaId(targetId)[0] || null;
+
+            if (!targetPoint) return;
+
+            const routePoints = buildRouteLinePoints(minimapIndicator, targetPoint);
+            if (routePoints.length > 1) {
+                const routeLine = svgElement('polyline', {
+                    points: routePoints.map(point => `${point.x},${point.y}`).join(' '),
+                    fill: 'none',
+                    stroke: '#22c55e',
+                    'stroke-width': 1,
+                    'stroke-linecap': 'round',
+                    'stroke-linejoin': 'round',
+                    'stroke-opacity': '.9',
+                    'filter': 'drop-shadow(0 0 1px rgba(34,197,94,0.55))'
+                });
+                content.appendChild(routeLine);
+            }
+        }
+
+        function saveMapGuide() {
+            try { localStorage.setItem(MAP_GUIDE_KEY, JSON.stringify(mapGuide)); } catch (error) { console.warn('No se pudo guardar el mapa guía', error); }
+        }
+
+        function loadMapGuide() {
+            try { const saved = JSON.parse(localStorage.getItem(MAP_GUIDE_KEY) || 'null'); if (saved) mapGuide = { ...mapGuide, ...saved, layers: { ...mapGuide.layers, ...(saved.layers || {}) } }; } catch (error) { console.warn('No se pudo cargar el mapa guía', error); }
+            renderMapGuide();
+        }
+
+        function setMapTool(tool) {
+            activeMapTool = activeMapTool === tool ? null : tool;
+            document.querySelectorAll('#map-tool-path, #map-tool-place, #map-tool-zone').forEach(button => button.classList.remove('active'));
+            if (activeMapTool) document.getElementById(`map-tool-${activeMapTool}`).classList.add('active');
+            if (activeMapTool !== 'path' && draftPath.length) finishMapPath();
+        }
+
+        function finishMapPath() { if (draftPath.length >= 2) mapGuide.paths.push({ name: `Camino ${mapGuide.paths.length + 1}`, shape: 'street', points: [...draftPath], thickness: 7, lengthScale: 100 }); draftPath = []; renderMapGuide(); saveMapGuide(); }
+
+        function handleMapGuideClick(event) {
+            if (minimapPlacementMode === 'panorama') {
+                const point = mapPointFromEvent(event);
+                if (currentPano) {
+                    mapGuide.panoramaPositions = mapGuide.panoramaPositions || {};
+                    mapGuide.panoramaPositions[currentPano.id] = {
+                        x: point.x,
+                        y: point.y,
+                        title: currentPano.title || currentPano.id,
+                        path: currentPano.path
+                    };
+                    saveMapGuide();
+                    renderMapGuide();
+                    renderMiniMap();
+                    setMiniMapPlacementMode(null);
+                }
+                return;
+            }
+            if (!isEdit || !activeMapTool) return;
+            const point = mapPointFromEvent(event);
+            if (activeMapTool === 'path') { if (event.shiftKey && draftPath.length) { const previous = draftPath[draftPath.length - 1]; if (Math.abs(point.x - previous.x) >= Math.abs(point.y - previous.y)) point.y = previous.y; else point.x = previous.x; } draftPath.push(point); renderMapGuide(); return; }
+            if (activeMapTool === 'place') { const name = prompt('Nombre del aula o lugar:'); if (name) { const type = prompt('Escribe Aula o Lugar:', 'Aula') || 'Lugar';                 const shapeName = (prompt('Forma: círculo, semicírculo, rectángulo o rombo:', 'círculo') || 'círculo').toLowerCase(); const shape = shapeName.includes('semi') ? 'semicircle' : shapeName.includes('rect') ? 'rect' : shapeName.includes('rombo') ? 'diamond' : 'circle'; mapGuide.places.push({ name: name.trim(), type: /^aula$/i.test(type) ? 'Aula' : 'Lugar', shape, w: 7, h: 7, x: point.x, y: point.y });
+ renderMapGuide(); saveMapGuide(); } }
+            if (activeMapTool === 'zone') { const name = prompt('Nombre del área no transitable:', 'Área restringida'); if (name) {                 const shapeName = (prompt('Forma: rectángulo, círculo, semicírculo o rombo:', 'rectángulo') || 'rectángulo').toLowerCase(); const shape = shapeName.includes('semi') ? 'semicircle' : shapeName.includes('cir') ? 'circle' : shapeName.includes('rombo') ? 'diamond' : 'rect'; mapGuide.zones.push({ name: name.trim(), shape, x: point.x, y: point.y, w: 18, h: 12 });
+ renderMapGuide(); saveMapGuide(); } }
+        }
+
+        document.getElementById('map-tool-path').onclick = () => setMapTool('path');
+        document.getElementById('map-tool-place').onclick = () => setMapTool('place');
+        document.getElementById('map-tool-zone').onclick = () => setMapTool('zone');
+        document.getElementById('map-finish-path').onclick = finishMapPath;
+        document.getElementById('map-clear-guide').onclick = () => { if (confirm('¿Deseas borrar todos los caminos, lugares y áreas del mapa?')) { mapGuide.paths = []; mapGuide.places = []; mapGuide.zones = []; draftPath = []; renderMapGuide(); saveMapGuide(); } };
+        
+        function renderMinimapElementsList() {
+            const list = document.getElementById('minimap-elements-list');
+            const editor = document.getElementById('advance-point-editor');
+            if (!list) return;
+            list.innerHTML = '';
+            
+            if (minimapIndicator && minimapIndicator.x !== undefined && minimapIndicator.y !== undefined) {
+                const item = document.createElement('div');
+                const isSelected = selectedMinimapElement?.type === 'indicator';
+                item.style.cssText = 'padding: 8px; background: rgba(56,189,248,0.2); border-radius: 4px; margin-bottom: 6px; cursor: pointer; border: 2px solid ' + (isSelected ? '#38bdf8' : 'transparent') + '; display: flex; justify-content: space-between; align-items: center;';
+                item.innerHTML = '<span>📍 Indicador (' + minimapIndicator.x.toFixed(1) + ', ' + minimapIndicator.y.toFixed(1) + ')</span><button type="button" style="background: #dc3545; color: white; border: 0; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">Eliminar</button>';
+                item.onclick = (e) => { if (e.target.tagName !== 'BUTTON') { selectedMinimapElement = { type: 'indicator' }; if (editor) editor.style.display = 'none'; renderMinimapElementsList(); } };
+                item.querySelector('button').onclick = (e) => { e.stopPropagation(); minimapIndicator = null; saveMiniMapState(); renderMinimapElementsList(); renderMiniMap(); };
+                list.appendChild(item);
+            }
+            
+            minimapAdvancePoints.forEach((point, idx) => {
+                const item = document.createElement('div');
+                const isSelected = selectedMinimapElement?.type === 'advance' && selectedMinimapElement.index === idx;
+                item.style.cssText = 'padding: 8px; background: rgba(245,158,11,0.2); border-radius: 4px; margin-bottom: 6px; cursor: pointer; border: 2px solid ' + (isSelected ? '#f59e0b' : 'transparent') + '; display: flex; justify-content: space-between; align-items: center;';
+                const linkedPano = panoramas.find(pano => pano.id === point.panoId);
+                const panoLabel = linkedPano
+                    ? ' [' + (linkedPano.title || linkedPano.path || linkedPano.id) + ']'
+                    : point.panoId
+                        ? ' [' + point.panoId + ']'
+                        : ' [sin imagen]';
+                item.innerHTML = '<span>🎯 Punto ' + (idx + 1) + panoLabel + '</span><button type="button" style="background: #dc3545; color: white; border: 0; padding: 4px 8px; border-radius: 3px; cursor: pointer; font-size: 11px;">Eliminar</button>';
+                item.onclick = (e) => { 
+                    if (e.target.tagName !== 'BUTTON') { 
+                        selectedMinimapElement = { type: 'advance', index: idx }; 
+                        renderMinimapElementsList(); 
+                        showAdvancePointEditor(point, idx);
+                    } 
+                };
+                item.querySelector('button').onclick = (e) => { e.stopPropagation(); minimapAdvancePoints.splice(idx, 1); saveMiniMapState(); selectedMinimapElement = null; renderMinimapElementsList(); renderMiniMap(); };
+                list.appendChild(item);
+            });
+            
+            if (!minimapIndicator && minimapAdvancePoints.length === 0) {
+                list.innerHTML = '<p style="color: #888; font-size: 12px; margin: 0;">Sin elementos. Haz clic en "Indicador" o "Punto avance".</p>';
+            }
+            
+            if (editor && selectedMinimapElement?.type !== 'advance') {
+                editor.style.display = 'none';
+            }
+        }
+        
+        function showAdvancePointEditor(point, idx) {
+            const editor = document.getElementById('advance-point-editor');
+            const folderSelect = document.getElementById('advance-point-folder');
+            const imageSelect = document.getElementById('advance-point-image');
+            const xInput = document.getElementById('advance-point-x');
+            const yInput = document.getElementById('advance-point-y');
+            const saveBtn = document.getElementById('advance-point-save');
+            
+            if (!editor || !folderSelect || !imageSelect || !xInput || !yInput || !saveBtn) return;
+
+            const catalog = panoramas.filter(pano => /^imagenes_del_colegio\//i.test(pano.path || ''));
+            const folders = [...new Set(catalog.map(pano => (pano.path || '').split('/')[1]).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'es'));
+            const selectedPano = panoramas.find(pano => pano.id === point.panoId);
+            const selectedFolder = selectedPano ? (selectedPano.path || '').split('/')[1] : '';
+            folderSelect.innerHTML = '<option value="">Todas las carpetas</option>' + folders.map(folder => `<option value="${folder}">${folder}</option>`).join('');
+            folderSelect.value = selectedFolder;
+
+            const renderAdvanceImages = () => {
+                const folder = folderSelect.value;
+                const images = folder ? catalog.filter(pano => (pano.path || '').split('/')[1] === folder) : catalog;
+                imageSelect.innerHTML = images.map(pano => `<option value="${pano.id}">${pano.title}</option>`).join('');
+                if (images.some(pano => pano.id === point.panoId)) imageSelect.value = point.panoId;
+            };
+            folderSelect.onchange = renderAdvanceImages;
+            renderAdvanceImages();
+            
+            editor.style.display = 'block';
+            xInput.value = point.x || 0;
+            yInput.value = point.y || 0;
+            
+            saveBtn.onclick = () => {
+                point.panoId = imageSelect.value || point.panoId || '';
+                point.x = clampNumber(Number(xInput.value) || 0, 0, 100);
+                point.y = clampNumber(Number(yInput.value) || 0, 0, 100);
+                saveMiniMapState();
+                renderMinimapElementsList();
+                renderMiniMap();
+                updateMinimap();
+            };
+        }
+        
+        document.getElementById('map-add-control-point').onclick = () => {
+            minimapPlacementMode = minimapPlacementMode === 'indicator' ? null : 'indicator';
+            document.getElementById('map-add-control-point').classList.toggle('active', minimapPlacementMode === 'indicator');
+            document.getElementById('map-add-control-point').textContent = minimapPlacementMode === 'indicator' ? '✓ Clic en el mapa' : '➕ Indicador';
+        };
+        
+        document.getElementById('map-add-advance-point').onclick = () => {
+            minimapPlacementMode = minimapPlacementMode === 'advance' ? null : 'advance';
+            document.getElementById('map-add-advance-point').classList.toggle('active', minimapPlacementMode === 'advance');
+            document.getElementById('map-add-advance-point').textContent = minimapPlacementMode === 'advance' ? '✓ Clic en el mapa' : '➕ Punto avance';
+        };
+        document.getElementById('mapa-google-layer').addEventListener('click', handleMapGuideClick);
+        document.getElementById('mapa-google-layer').addEventListener('dblclick', event => { event.preventDefault(); if (activeMapTool === 'path') finishMapPath(); });
+        ['paths', 'places', 'zones'].forEach(layer => document.getElementById(`layer-${layer}`).addEventListener('change', event => { mapGuide.layers[layer] = event.target.checked; renderMapGuide(); saveMapGuide(); }));
+        document.getElementById('map-grid-visible').addEventListener('change', renderMapGuide);
+        document.getElementById('map-snap-grid').addEventListener('change', renderMapGuide);
+
+        function applyMapSettings() {
+            const mapa = document.getElementById('mapa-google-overlay');
+            if (!mapa) return;
+            const wrapper = document.getElementById('mapa-google-wrapper');
+            const surface = document.getElementById('mapa-google-surface');
+            mapa.style.width = '100%';
+            mapa.style.left = 'auto';
+            mapa.style.bottom = 'auto';
+            if (wrapper && !wrapper.closest('#map-guide-modal')) { wrapper.style.width = `${mapSettings.width}px`; wrapper.style.left = `${mapSettings.left}px`; wrapper.style.bottom = `${mapSettings.bottom}px`; } else if (wrapper) { wrapper.style.width = '100%'; wrapper.style.left = 'auto'; wrapper.style.bottom = 'auto'; }
+            if (surface && !wrapper?.closest('#map-guide-modal')) { surface.style.width = `${mapSettings.zoom}%`; surface.style.height = `${mapSettings.zoom}%`; }
+            mapa.style.opacity = String(mapSettings.opacity / 100);
+            mapa.style.filter = `grayscale(${mapSettings.grayscale}%)`;
+            const controls = [
+                ['map-width', 'map-width-value', mapSettings.width, 'px'],
+                ['map-opacity', 'map-opacity-value', mapSettings.opacity, '%'],
+                ['map-grayscale', 'map-grayscale-value', mapSettings.grayscale, '%'],
+                ['map-left', 'map-left-value', mapSettings.left, 'px'],
+                ['map-bottom', 'map-bottom-value', mapSettings.bottom, 'px'],
+                ['map-zoom', 'map-zoom-value', mapSettings.zoom, '%'],
+                ['map-view-x', 'map-view-x-value', mapSettings.viewX, '%'],
+                ['map-view-y', 'map-view-y-value', mapSettings.viewY, '%']
+            ];
+            controls.forEach(([inputId, valueId, value, unit]) => {
+                const input = document.getElementById(inputId);
+                const output = document.getElementById(valueId);
+                if (input) input.value = value;
+                if (output) output.textContent = `${value}${unit}`;
+            });
+            const followIndicator = document.getElementById('map-follow-indicator');
+            if (followIndicator) followIndicator.checked = mapSettings.followIndicator !== false;
+            updateMapViewport();
+        }
+
+        function loadMapSettings() {
+            try {
+                const saved = JSON.parse(localStorage.getItem(MAP_SETTINGS_KEY) || 'null');
+                if (saved && typeof saved === 'object') mapSettings = { ...DEFAULT_MAP_SETTINGS, ...saved };
+            } catch (error) {
+                console.warn('No se pudieron cargar los ajustes del mapa', error);
+            }
+            applyMapSettings();
+        }
+
+        function saveMapSettings() {
+            try {
+                localStorage.setItem(MAP_SETTINGS_KEY, JSON.stringify(mapSettings));
+                saveMapGuide();
+                updateSaveStatus('Mapa y vistas guardados localmente', false);
+            } catch (error) {
+                console.warn('No se pudieron guardar los ajustes del mapa', error);
+                updateSaveStatus('No se pudo guardar el mapa', false);
+            }
+        }
+
+        function selectMapElement(selection) {
+            selectedMapElement = selection;
+            const editor = document.getElementById('map-element-editor');
+            const item = selection.item;
+            editor.classList.add('visible');
+            document.getElementById('map-element-name').value = item.name || '';
+            document.getElementById('map-element-color').value = item.color || (selection.kind === 'zone' ? '#dc3545' : selection.kind === 'path' ? '#ffffff' : '#2563c7');
+            document.getElementById('map-element-shape').value = item.shape || 'rect';
+            document.getElementById('map-element-width').value = item.w || item.thickness || 7;
+            document.getElementById('map-element-length').value = item.lengthScale || 100;
+            document.getElementById('map-element-height').value = item.h || 8;
+            document.getElementById('map-element-width-value').textContent = document.getElementById('map-element-width').value;
+            document.getElementById('map-element-length-value').textContent = `${document.getElementById('map-element-length').value}%`;
+            document.getElementById('map-element-height-value').textContent = document.getElementById('map-element-height').value;
+        }
+
+        function closeMapGuideModal() {
+            finishMapPath();
+            activeMapTool = null;
+            selectedMapElement = null;
+            selectedMinimapElement = null;
+            document.getElementById('map-guide-modal').classList.remove('open');
+            const wrapper = document.getElementById('mapa-google-wrapper');
+            if (mapOriginalParent && wrapper) mapOriginalParent.appendChild(wrapper);
+            mapOriginalParent = null;
+            updateMapPanelState(false);
+            applyMapSettings();
+        }
+
+        function updateSelectedMapElement() {
+            if (!selectedMapElement) return;
+            const item = selectedMapElement.item;
+            item.name = document.getElementById('map-element-name').value.trim() || item.name;
+            item.color = document.getElementById('map-element-color').value;
+            item.shape = document.getElementById('map-element-shape').value;
+            if (selectedMapElement.kind === 'path') {
+                item.thickness = Number(document.getElementById('map-element-width').value);
+                const nextScale = Number(document.getElementById('map-element-length').value);
+                const previousScale = item.lengthScale || 100;
+                if (nextScale !== previousScale && item.points.length) { const origin = item.points[0]; const factor = nextScale / previousScale; item.points = item.points.map((point, index) => index === 0 ? point : { x: origin.x + (point.x - origin.x) * factor, y: origin.y + (point.y - origin.y) * factor }); }
+                item.lengthScale = nextScale;
+            } else { item.w = Number(document.getElementById('map-element-width').value); item.h = Number(document.getElementById('map-element-height').value); }
+            document.getElementById('map-element-width-value').textContent = document.getElementById('map-element-width').value;
+            document.getElementById('map-element-length-value').textContent = `${document.getElementById('map-element-length').value}%`;
+            document.getElementById('map-element-height-value').textContent = document.getElementById('map-element-height').value;
+            renderMapGuide();
+            saveMapGuide();
+        }
+
+        function updateMapPanelState(isOpen) {
+            const mapa = document.getElementById('mapa-google-overlay');
+            const panel = document.getElementById('map-editor-section');
+            const layer = document.getElementById('mapa-google-layer');
+            const wrapper = document.getElementById('mapa-google-wrapper');
+            const surface = document.getElementById('mapa-google-surface');
+            if (mapa) mapa.classList.toggle('map-editing', Boolean(isOpen));
+            if (wrapper) wrapper.classList.toggle('map-editing', Boolean(isOpen));
+            if (layer) layer.classList.toggle('editing', Boolean(isOpen));
+            if (panel) panel.setAttribute('aria-hidden', isOpen ? 'false' : 'true');
+            if (surface && isOpen) { surface.style.width = '100%'; surface.style.height = '100%'; }
+            renderMapGuide();
+        }
+
+        function openMapEditor(event) {
+            if (event) event.stopPropagation();
+            isEdit = true;
+            document.body.classList.replace('view-mode', 'edit-mode');
+            document.getElementById('btn-mode-view')?.classList.remove('active');
+            document.getElementById('btn-mode-edit')?.classList.add('active');
+            const modal = document.getElementById('map-guide-modal');
+            const wrapper = document.getElementById('mapa-google-wrapper');
+            const stage = document.getElementById('map-guide-modal-stage');
+            if (wrapper && stage && !mapOriginalParent) { mapOriginalParent = wrapper.parentElement; stage.appendChild(wrapper); }
+            modal.classList.add('open');
+            updateMapPanelState(true);
+            applyMapSettings();
+            renderMinimapElementsList();
+        }
+
+        document.getElementById('mapa-google-overlay').addEventListener('click', openMapEditor);
+        document.getElementById('btn-open-map-editor').onclick = openMapEditor;
+        document.getElementById('map-guide-modal-close').onclick = closeMapGuideModal;
+        document.getElementById('map-guide-modal-save').onclick = () => { finishMapPath(); saveMapSettings(); saveMapGuide(); updateSaveStatus('Mapa guía guardado', false); alert('Cambios guardados correctamente.'); };
+        document.getElementById('map-guide-modal').addEventListener('click', event => { if (event.target.id === 'map-guide-modal') closeMapGuideModal(); });
+        document.getElementById('btn-close-map-editor').onclick = closeMapGuideModal;
+        document.getElementById('btn-add-info').onclick = () => prepareInfoForm('full');
+        document.getElementById('btn-add-simple-alert').onclick = (event) => {
+            hotspotPlacementType = hotspotPlacementType === 'simple-alert' ? 'arrow' : 'simple-alert';
+            const isActive = hotspotPlacementType === 'simple-alert';
+            event.currentTarget.classList.toggle('active', isActive);
+            event.currentTarget.textContent = isActive ? '❗ Doble clic para colocar nombre simple' : '❗ Crear nombre simple';
+            if (!isActive) {
+                alertPlacementMode = false;
+                closeLabelForm();
+            }
+        };
+        document.getElementById('btn-close-label-form').onclick = closeLabelForm;
+        const alertFormModeSelect = document.getElementById('label-alert-form-mode');
+        if (alertFormModeSelect) {
+            alertFormModeSelect.addEventListener('change', (event) => {
+                setAlertFormMode(event.target.value === 'simple' ? 'simple' : 'full');
+            });
+        }
+        document.getElementById('btn-add-label').onclick = addLabelFromForm;
+        document.getElementById('label-size').oninput = (e) => {
+            const sizeValue = document.getElementById('label-size-value');
+            if (sizeValue) sizeValue.textContent = `${e.target.value} px`;
+            if (selectedLabel) {
+                selectedLabel.fontSize = Number(e.target.value) || 12;
+                renderLabels();
+                markDirty();
+            }
+        };
+        document.getElementById('label-marker-size').oninput = (e) => {
+            const sizeValue = document.getElementById('label-marker-size-value');
+            if (sizeValue) sizeValue.textContent = `${e.target.value} px`;
+        };
+        document.getElementById('label-color').oninput = (e) => {
+            if (selectedLabel) {
+                selectedLabel.color = e.target.value;
+                renderLabels();
+                markDirty();
+            }
+        };
+        document.getElementById('label-form-header').onpointerdown = (event) => {
+            if (event.target.closest('button')) return;
+            const panel = document.getElementById('label-form-panel');
+            if (!panel) return;
+            const rect = panel.getBoundingClientRect();
+            const startX = event.clientX;
+            const startY = event.clientY;
+            const startLeft = rect.left;
+            const startTop = rect.top;
+
+            function move(e) {
+                const moveX = e.clientX - startX;
+                const moveY = e.clientY - startY;
+                const wrapper = document.getElementById('viewer-wrapper');
+                const wrapperRect = wrapper.getBoundingClientRect();
+                const nextLeft = clampNumber(startLeft + moveX - wrapperRect.left, 10, wrapperRect.width - 260);
+                const nextTop = clampNumber(startTop + moveY - wrapperRect.top, 10, wrapperRect.height - 120);
+                panel.style.left = `${nextLeft}px`;
+                panel.style.top = `${nextTop}px`;
+            }
+
+            function stop() {
+                document.removeEventListener('pointermove', move);
+                document.removeEventListener('pointerup', stop);
+            }
+
+            document.addEventListener('pointermove', move);
+            document.addEventListener('pointerup', stop);
+        };
+        document.getElementById('map-element-name').oninput = updateSelectedMapElement;
+        document.getElementById('map-element-color').oninput = updateSelectedMapElement;
+        document.getElementById('map-element-shape').onchange = updateSelectedMapElement;
+        document.getElementById('map-element-width').oninput = updateSelectedMapElement;
+        document.getElementById('map-element-length').oninput = updateSelectedMapElement;
+        document.getElementById('map-element-height').oninput = updateSelectedMapElement;
+        window.addEventListener('pointermove', event => { if (!draggingPathPoint) return; const point = mapPointFromEvent(event); const path = draggingPathPoint.path; const index = draggingPathPoint.index; if (event.shiftKey && index > 0) { const previous = path.points[index - 1]; if (Math.abs(point.x - previous.x) >= Math.abs(point.y - previous.y)) point.y = previous.y; else point.x = previous.x; } path.points[index] = point; renderMapGuide(); });
+        window.addEventListener('pointerup', () => { if (draggingPathPoint) { saveMapGuide(); draggingPathPoint = null; } });
+        function mapElementCollection(kind) { return kind === 'path' ? 'paths' : kind === 'place' ? 'places' : 'zones'; }
+        document.getElementById('map-element-copy').onclick = () => { if (!selectedMapElement) return; mapClipboard = { kind: selectedMapElement.kind, item: JSON.parse(JSON.stringify(selectedMapElement.item)) }; updateSaveStatus('Elemento copiado', false); };
+        document.getElementById('map-element-paste').onclick = () => { if (!mapClipboard) { updateSaveStatus('Primero copia un elemento', false); return; } const copy = JSON.parse(JSON.stringify(mapClipboard.item)); const collection = mapElementCollection(mapClipboard.kind); mapGuide[collection].push(copy); selectedMapElement = { kind: mapClipboard.kind, item: copy }; renderMapGuide(); selectMapElement(selectedMapElement); saveMapGuide(); updateSaveStatus('Elemento pegado con la misma información', false); };
+        function reorderSelectedElement(direction) { if (!selectedMapElement) return; const collection = mapElementCollection(selectedMapElement.kind); const items = mapGuide[collection]; const index = items.indexOf(selectedMapElement.item); const target = direction === 'front' ? items.length - 1 : 0; items.splice(index, 1); items.splice(target, 0, selectedMapElement.item); renderMapGuide(); saveMapGuide(); }
+        document.getElementById('map-element-front').onclick = () => reorderSelectedElement('front');
+        document.getElementById('map-element-back').onclick = () => reorderSelectedElement('back');
+        document.getElementById('map-element-delete').onclick = () => { if (!selectedMapElement) return; const collection = mapElementCollection(selectedMapElement.kind); mapGuide[collection] = mapGuide[collection].filter(item => item !== selectedMapElement.item); selectedMapElement = null; document.getElementById('map-element-editor').classList.remove('visible'); renderMapGuide(); saveMapGuide(); };
+        [
+            ['map-opacity', 'opacity', 'map-opacity-value', '%'],
+            ['map-grayscale', 'grayscale', 'map-grayscale-value', '%'],
+            ['map-zoom', 'zoom', 'map-zoom-value', '%'],
+            ['map-view-x', 'viewX', 'map-view-x-value', '%'],
+            ['map-view-y', 'viewY', 'map-view-y-value', '%'],
+        ].forEach(([inputId, setting, outputId, unit]) => {
+            document.getElementById(inputId).addEventListener('input', (event) => {
+                mapSettings[setting] = Number(event.target.value);
+                document.getElementById(outputId).textContent = `${mapSettings[setting]}${unit}`;
+                applyMapSettings();
+                updateMapPanelState(true);
+            });
+        });
+
+        document.getElementById('map-follow-indicator').addEventListener('change', (event) => {
+            mapSettings.followIndicator = event.target.checked;
+            applyMapSettings();
+            updateMapViewport();
+            saveMapSettings();
+        });
+
+        document.getElementById('btn-mode-view').onclick = () => {
+
+            isEdit = false;
+            document.body.classList.replace('edit-mode', 'view-mode');
+            updateMapPanelState(false);
+            renderHS();
+            renderMiniMap();
+        };
+
+        window.addEventListener('pointermove', (event) => {
+            if (!labelDragState) return;
+            const viewerWrap = document.getElementById('viewer-wrapper');
+            if (!viewerWrap) return;
+            const label = (currentPano.labels || []).find(item => item.id === labelDragState.id);
+            if (!label) return;
+            const wrapperRect = viewerWrap.getBoundingClientRect();
+            const x = clampNumber(((event.clientX - wrapperRect.left) / wrapperRect.width) * 100, 0, 100);
+            const y = clampNumber(((event.clientY - wrapperRect.top) / wrapperRect.height) * 100, 0, 100);
+            label.x = x;
+            label.y = y;
+            renderLabels();
+        });
+
+        window.addEventListener('pointerup', () => {
+            if (labelDragState) {
+                markDirty();
+                labelDragState = null;
+            }
+        });
+        document.getElementById('btn-mode-edit').onclick = () => {
+            openMapEditor();
+        };
+        document.getElementById('btn-copy-viewer-object').onclick = () => {
+            if (!copySelectedViewerObject()) updateSaveStatus('Selecciona un objeto del panorama para copiarlo.', false);
+        };
+        document.getElementById('btn-paste-viewer-object').onclick = () => {
+            if (!pasteViewerObject()) updateSaveStatus('Copia primero un objeto del panorama.', false);
+        };
+        document.getElementById('schedule-alert-close').onclick = cerrarAlertaHorario;
+        document.getElementById('schedule-alert-overlay').addEventListener('click', event => {
+            if (event.target.id === 'schedule-alert-overlay') cerrarAlertaHorario();
+        });
+        document.addEventListener('keydown', (event) => {
+            if (document.getElementById('schedule-alert-overlay')?.classList.contains('open')) {
+                if (event.key === 'Escape') cerrarAlertaHorario();
+                event.preventDefault();
+                return;
+            }
+            const element = event.target;
+            const isTyping = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement || element.isContentEditable;
+            if (isTyping) return;
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'c') {
+                if (copySelectedViewerObject()) event.preventDefault();
+                return;
+            }
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'v') {
+                if (pasteViewerObject()) event.preventDefault();
+                return;
+            }
+            if (!['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+            event.preventDefault();
+            moveWithArrowKey(event.key);
+        });
+        document.getElementById('btn-show-route').onclick = showRoute;
+        document.getElementById('route-destination').onkeydown = (e) => { if (e.key === 'Enter') showRoute(); };
+        document.getElementById('btn-place-indicator').onclick = () => setMiniMapPlacementMode('indicator');
+        document.getElementById('btn-place-advance').onclick = () => setMiniMapPlacementMode('advance');
+        document.getElementById('btn-place-panorama').onclick = () => setMiniMapPlacementMode('panorama');
+        document.getElementById('btn-set-start-image').onclick = saveStartImage;
+        document.getElementById('mapa-google-wrapper').addEventListener('click', placeMiniMapPoint);
+        document.getElementById('mapa-google-layer').addEventListener('click', placeMiniMapPoint, true);
+        document.getElementById('allow-hotspot-move').onchange = (e) => {
+            allowHotspotMove = e.target.checked;
+        };
+
+        function buildExportCopy() {
+            const copy = JSON.parse(JSON.stringify(panoramas));
+            copy.forEach(p => {
+                p.initialYaw = Number(p.initialYaw) || 0;
+                p.initialPitch = Number(p.initialPitch) || 0;
+                p.forwardYaw = Number(p.forwardYaw) || 0;
+                p.forwardPitch = Number(p.forwardPitch) || 0;
+                p.backwardYaw = Number(p.backwardYaw) || 0;
+                p.backwardPitch = Number(p.backwardPitch) || 0;
+                p.leftYaw = Number(p.leftYaw) || 0;
+                p.leftPitch = Number(p.leftPitch) || 0;
+                p.rightYaw = Number(p.rightYaw) || 0;
+                p.rightPitch = Number(p.rightPitch) || 0;
+                p.labels = Array.isArray(p.labels) ? p.labels.map(label => ({
+                    id: label.id,
+                    text: label.text || '',
+                    profesor: label.profesor || '',
+                    grado: label.grado || '',
+                    salon: label.salon || '',
+                    dia: label.dia || '',
+                    hora: label.hora || '',
+                    horaInicio: label.horaInicio || '',
+                    horaFin: label.horaFin || '',
+                    titulo: label.titulo || '',
+                    descripcion: label.descripcion || '',
+                    x: Number(label.x) || 50,
+                    y: Number(label.y) || 50,
+                    color: label.color || '#ffffff',
+                    bg: label.bg || 'rgba(15, 23, 42, 0.75)',
+                    fontSize: Number(label.fontSize) || 12
+                })) : [];
+                p.alerts = Array.isArray(p.alerts) ? p.alerts.map(alert => ({
+                    id: alert.id,
+                    title: alert.title || 'Aviso',
+                    description: alert.description || '',
+                    alertMode: alert.alertMode || 'full',
+                    profesor: alert.profesor || '',
+                    curso: alert.curso || '',
+                    grado: alert.grado || '',
+                    salon: alert.salon || '',
+                    dia: alert.dia || '',
+                    hora: alert.hora || (alert.horaInicio && alert.horaFin ? `${alert.horaInicio} - ${alert.horaFin}` : alert.horaInicio || alert.horaFin || ''),
+                    horaInicio: alert.horaInicio || '',
+                    horaFin: alert.horaFin || '',
+                    titulo: alert.titulo || '',
+                    descripcion: alert.descripcion || '',
+                    pitch: Number(alert.pitch) || 0,
+                    yaw: Number(alert.yaw) || 0,
+                    x: Number(alert.x) || 50,
+                    y: Number(alert.y) || 50,
+                    color: alert.color || '#22c55e',
+                    bg: alert.bg || 'rgba(101, 35, 18, 0.85)',
+                    fontSize: Number(alert.fontSize) || 18,
+                    markerSize: Number(alert.markerSize) || 70
+                })) : [];
+                if (p.hotspots && p.hotspots.length) {
+                    p.hotspots = p.hotspots.map(h => ({
+                        pitch: h.pitch,
+                        yaw: h.yaw,
+                        sourceImage: p.id,
+                        type: h.type || 'arrow',
+                        targetId: h.targetId || h.target || h.targetImage || null,
+                        direction: h.direction || 'forward',
+                        directionLabel: ({ forward: 'Adelante', backward: 'Atrás', down: 'Abajo', right: 'Derecha', left: 'Izquierda' })[h.direction || 'forward'],
+                        color: h.color,
+                        w: h.w,
+                        h: h.h,
+                        rotate: h.rotate,
+                        tilt: h.tilt,
+                        profesor: h.profesor || '',
+                        curso: h.curso || '',
+                        grado: h.grado || '',
+                        salon: h.salon || '',
+                        dia: h.dia || '',
+                        hora: h.hora || '',
+                        idHorario: h.idHorario || '',
+                        horaInicio: h.horaInicio || '',
+                        horaFin: h.horaFin || ''
+                    }));
+                }
+            });
+            return copy;
+        }
+
+        function downloadJSON(obj, filename = 'colegio_santander_export.json') {
+            const blob = new Blob([JSON.stringify(obj, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+            a.remove();
+            URL.revokeObjectURL(url);
+        }
+
+        function downloadMapPointLocations() {
+            downloadJSON({
+                indicador: minimapIndicator ? { ...minimapIndicator } : null,
+                puntosAvance: minimapAdvancePoints.map(point => ({ ...point }))
+            }, 'ubicaciones_puntos_mapa.json');
+        }
+
+        document.getElementById('btn-download-map-points').onclick = downloadMapPointLocations;
+
+        function savePanoramas(options = {}) {
+            const { showConfirm = true, silent = false } = options;
+            const copy = buildExportCopy();
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(panoramas));
+                localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(panoramas));
+            } catch (e) {
+                console.warn('No se pudo guardar localmente', e);
+            }
+
+            if (!silent) updateSaveStatus('Guardando...', true);
+
+            if (!silent) updateSaveStatus('Vistas guardadas localmente', false);
+
+            const saveToServer = () => {
+                fetch('/', { method: 'GET' }).then(resp => {
+                    if (!resp.ok) throw new Error('Servidor no disponible');
+                    if (showConfirm && !confirm('Esto sobrescribirá data/panoramas.json en el proyecto. ¿Deseas continuar?')) {
+                        updateSaveStatus('Guardado local', false);
+                        return;
+                    }
+                    fetch('/save', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(copy)
+                    }).then(res => res.json()).then(obj => {
+                        if (obj && obj.ok) {
+                            localStorage.removeItem(PENDING_STORAGE_KEY);
+                            updateSaveStatus('Guardado en servidor', false);
+                            if (!silent) alert('Guardado en servidor: ' + obj.path + '\n(Se creó una copia de seguridad si ya existía)');
+                        } else {
+                            throw new Error(obj && obj.error ? obj.error : 'Error al guardar');
+                        }
+                    }).catch(err => {
+                        console.error(err);
+                        updateSaveStatus('Guardado local', false);
+                        if (!silent) {
+                            if (confirm('No fue posible guardar en el servidor. ¿Deseas descargar el JSON en su lugar?')) {
+                                downloadJSON(copy);
+                                alert('Se descargó colegio_santander_export.json. Puedes copiarlo sobre data/colegio_santander.json o iniciar el servidor local para guardarlo automáticamente.');
+                            }
+                        }
+                    });
+                }).catch(() => {
+                    updateSaveStatus('Guardado local', false);
+                    if (!silent && showConfirm && confirm('Servidor de guardado no está disponible. ¿Deseas descargar el JSON en su lugar?')) {
+                        downloadJSON(copy);
+                        alert('Se descargó panoramas_export.json. Puedes copiarlo sobre data/panoramas.json o iniciar el servidor local para guardarlo automáticamente.');
+                    }
+                });
+            };
+
+            if (showConfirm) {
+                saveToServer();
+            } else {
+                saveToServer();
+            }
+        }
+
+        document.getElementById('btn-export').onclick = () => {
+            saveMapSettings();
+            saveMapGuide();
+            downloadJSON(buildExportCopy(), 'colegio_santander_coordenadas.json');
+            savePanoramas({ showConfirm: true, silent: false });
+        };
+
+        document.getElementById('label-id-horario').addEventListener('change', (event) => {
+            const option = event.target.options[event.target.selectedIndex];
+            if (!option?.dataset.horario) return;
+            try {
+                const horario = JSON.parse(option.dataset.horario);
+                const cursoInput = document.getElementById('label-curso');
+                if (cursoInput && horario.materia) cursoInput.value = horario.materia;
+            } catch (error) {
+                console.warn('No se pudo completar el curso desde el horario', error);
+            }
+        });
+        document.querySelectorAll('.weekly-calendar-day').forEach(button => {
+            button.addEventListener('click', () => setWeeklyCalendar(button.dataset.day, document.getElementById('weekly-calendar-time').value));
+        });
+        document.getElementById('weekly-calendar-time').addEventListener('change', (event) => {
+            setWeeklyCalendar(calendarioDia, event.target.value);
+        });
+        setCurrentCalendarDefaults();
+
+        const labelSource = document.getElementById('label-source');
+        function updateSourceLabel() {
+            if (labelSource) labelSource.textContent = currentPano.title || currentPano.id;
+            syncMenu();
+        }
+
+                loadMapSettings();
+        loadMapGuide();
+                loadMiniMapState().then(() => {
+                    cargarHorariosColegio();
+                    return loadPanoramas();
+                }).then(loadImageCatalog).then(() => {
+            if (!Array.isArray(panoramas) || !panoramas.length) {
+                updateSaveStatus('No hay datos del colegio', false);
+                return;
+            }
+
+            document.getElementById('route-images').innerHTML = panoramas
+                .filter(p => /^imagen\d+$/.test(p.id))
+                .sort((a, b) => Number(a.id.replace('imagen', '')) - Number(b.id.replace('imagen', '')))
+                .map(p => `<option value="${p.id.replace('imagen', 'imagen ')}">${p.title}</option>`)
+                .join('');
+            const fixedStartImage = panoramas.find(p => p && p.path === DEFAULT_START_IMAGE_PATH);
+            const firstRealImage = panoramas.find(p => p && /^imagenes_del_colegio\//i.test(p.path || ''));
+            currentPano = fixedStartImage || firstRealImage || panoramas[0];
+            populateImageSelectors();
+            cargarLugaresGuardados();
+            if (!currentPano) {
+                updateSaveStatus('No hay panoramas válidos', false);
+                return;
+            }
+            currentPano.labels = currentPano.labels || [];
+            currentPano.alerts = currentPano.alerts || [];
+            updateSaveStatus('Guardado local', false);
+            setupLeafletMiniMap();
+            init();
+            renderLabels();
+            updateSourceLabel();
+            llenarMenuNavegacion();
+            updateLeafletMiniMap();
+
+        });
+    

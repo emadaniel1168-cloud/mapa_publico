@@ -6,6 +6,37 @@ require_once __DIR__ . '/db.php';
 
 try {
     $action = $_GET['action'] ?? '';
+
+    if ($action === 'imagenes') {
+        $root = __DIR__ . DIRECTORY_SEPARATOR . 'imagenes_del_colegio';
+        $allowedExtensions = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+        $items = [];
+
+        if (is_dir($root)) {
+            $iterator = new RecursiveIteratorIterator(
+                new RecursiveDirectoryIterator($root, FilesystemIterator::SKIP_DOTS)
+            );
+
+            foreach ($iterator as $file) {
+                if (!$file->isFile()) continue;
+                if (strtolower($file->getFilename()) === 'mapa_google.jpeg') continue;
+                $extension = strtolower($file->getExtension());
+                if (!in_array($extension, $allowedExtensions, true)) continue;
+
+                $relativePath = str_replace(DIRECTORY_SEPARATOR, '/', substr($file->getPathname(), strlen(__DIR__) + 1));
+                $relativeFolder = str_replace(DIRECTORY_SEPARATOR, '/', substr($file->getPath(), strlen($root) + 1));
+                $items[] = [
+                    'path' => $relativePath,
+                    'title' => pathinfo($file->getFilename(), PATHINFO_FILENAME),
+                    'folder' => $relativeFolder,
+                ];
+            }
+        }
+
+        usort($items, static fn(array $a, array $b): int => strnatcasecmp($a['path'], $b['path']));
+        jsonResponse(['ok' => true, 'items' => $items]);
+    }
+
     $pdo = db();
 
     switch ($action) {
@@ -72,7 +103,7 @@ try {
                 $params['dia'] = $dia;
             }
 
-            $sql .= ' ORDER BY h.id_grado, h.dia_semana, h.num_bloque_clase LIMIT 100';
+            $sql .= ' ORDER BY h.id_grado, h.dia_semana, h.num_bloque_clase LIMIT 1000';
 
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
@@ -90,11 +121,7 @@ try {
         case 'lugares':
             $panoramaId = trim((string)($_GET['panorama_id'] ?? ''));
 
-            if ($panoramaId === '') {
-                jsonResponse(['ok' => false, 'error' => 'Falta panorama_id'], 422);
-            }
-
-            $stmt = $pdo->prepare(
+            $sql =
                 'SELECT
                     l.id_lugar,
                     l.panorama_id,
@@ -111,16 +138,24 @@ try {
                     b.hora_inicio,
                     b.hora_fin
                  FROM lugares_360 l
-                 INNER JOIN horarios h ON h.id_horario = l.id_horario
-                 INNER JOIN grados g ON g.id_grado = h.id_grado
-                 INNER JOIN bloques_horarios b
+                 LEFT JOIN horarios h ON h.id_horario = l.id_horario
+                 LEFT JOIN grados g ON g.id_grado = h.id_grado
+                 LEFT JOIN bloques_horarios b
                     ON b.jornada = g.jornada
                    AND b.num_bloque = CAST(h.num_bloque_clase AS CHAR)
-                 WHERE l.panorama_id = :panorama_id
-                   AND l.activo = 1
-                 ORDER BY l.id_lugar'
-            );
-            $stmt->execute(['panorama_id' => $panoramaId]);
+                 WHERE l.activo = 1';
+
+            $params = [];
+
+            if ($panoramaId !== '') {
+                $sql .= ' AND l.panorama_id = :panorama_id';
+                $params['panorama_id'] = $panoramaId;
+            }
+
+            $sql .= ' ORDER BY l.id_lugar';
+
+            $stmt = $pdo->prepare($sql);
+            $stmt->execute($params);
 
             jsonResponse(['ok' => true, 'items' => $stmt->fetchAll()]);
             break;
@@ -134,26 +169,28 @@ try {
             $panoramaId = requiredString($data, 'panorama_id');
             $titulo = requiredString($data, 'titulo');
             $descripcion = trim((string)($data['descripcion'] ?? ''));
-            $idHorario = filter_var($data['id_horario'] ?? null, FILTER_VALIDATE_INT);
+            $idHorarioRaw = $data['id_horario'] ?? null;
+            $idHorario = $idHorarioRaw === null || $idHorarioRaw === '' ? null : filter_var($idHorarioRaw, FILTER_VALIDATE_INT);
             $pitch = (float)($data['pitch'] ?? 0);
             $yaw = (float)($data['yaw'] ?? 0);
-
-            if (!$idHorario) {
-                jsonResponse(['ok' => false, 'error' => 'Debes seleccionar un horario válido'], 422);
-            }
 
             if ($pitch < -90 || $pitch > 90 || $yaw < -360 || $yaw > 360) {
                 jsonResponse(['ok' => false, 'error' => 'Coordenadas del hotspot inválidas'], 422);
             }
 
-            /* Validación fuerte: el id_horario debe existir en la BD. */
-            $check = $pdo->prepare(
-                'SELECT id_horario FROM horarios WHERE id_horario = :id_horario'
-            );
-            $check->execute(['id_horario' => $idHorario]);
+            if ($idHorario !== null && $idHorario <= 0) {
+                jsonResponse(['ok' => false, 'error' => 'Debes seleccionar un horario válido'], 422);
+            }
 
-            if (!$check->fetch()) {
-                jsonResponse(['ok' => false, 'error' => 'El horario seleccionado no existe'], 422);
+            if ($idHorario !== null) {
+                $check = $pdo->prepare(
+                    'SELECT id_horario FROM horarios WHERE id_horario = :id_horario'
+                );
+                $check->execute(['id_horario' => $idHorario]);
+
+                if (!$check->fetch()) {
+                    jsonResponse(['ok' => false, 'error' => 'El horario seleccionado no existe'], 422);
+                }
             }
 
             $stmt = $pdo->prepare(

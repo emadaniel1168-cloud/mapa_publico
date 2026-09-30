@@ -61,6 +61,17 @@
                 <label>Destino (imagen a donde va):</label>
                 <select id="select-target" style="width:100%; padding:8px; background:#333; color:white; border:1px solid #444"></select>
             </div>
+
+            <div class="menu-section">
+                <label>Dirección de la flecha:</label>
+                <select id="select-direction" style="width:100%; padding:8px; background:#333; color:white; border:1px solid #444">
+                    <option value="forward">Adelante</option>
+                    <option value="backward">Atrás</option>
+                    <option value="down">Abajo</option>
+                    <option value="right">Derecha</option>
+                    <option value="left">Izquierda</option>
+                </select>
+            </div>
             
             <div class="menu-section">
                 <label>Color:</label>
@@ -95,13 +106,13 @@
     <script src="https://cdn.jsdelivr.net/npm/pannellum@2.5.6/build/pannellum.js"></script>
     <script>
         let panoramas = [
-            { id: 'imagen1', title: 'Pano 1', path: 'images/imagen1.jpeg', hotspots: [] },
-            { id: 'imagen2', title: 'Pano 2', path: 'images/imagen2.jpeg', hotspots: [] },
-            { id: 'imagen3', title: 'Pano 3', path: 'images/imagen3.jpeg', hotspots: [] },
-            { id: 'imagen4', title: 'Pano 4', path: 'images/imagen4.jpeg', hotspots: [] },
-            { id: 'imagen7', title: 'Pano 7', path: 'images/imagen7.jpeg', hotspots: [] },
-            { id: 'imagen8', title: 'Pano 8', path: 'images/imagen8.jpeg', hotspots: [] },
-            { id: 'imagen9', title: 'Pano 9', path: 'images/imagen9.jpeg', hotspots: [] }
+            { id: 'imagen1', title: 'Pano 1', path: 'imagenes_del_colegio/biblioteca/atras_de_la_biblieca_al_fondo_centro.jpg', hotspots: [] },
+            { id: 'imagen2', title: 'Pano 2', path: 'imagenes_del_colegio/biblioteca/biblioteca_casi_llegando_la_esquina_del_otro_lado.jpg', hotspots: [] },
+            { id: 'imagen3', title: 'Pano 3', path: 'imagenes_del_colegio/biblioteca/biblioteca_de_otro_lado_de_la_otra_entrada.jpg', hotspots: [] },
+            { id: 'imagen4', title: 'Pano 4', path: 'imagenes_del_colegio/biblioteca/biblioteca_del_otro_lado.jpg', hotspots: [] },
+            { id: 'imagen7', title: 'Pano 7', path: 'imagenes_del_colegio/biblioteca/entrada_de_la_biblioteca.jpg', hotspots: [] },
+            { id: 'imagen8', title: 'Pano 8', path: 'imagenes_del_colegio/biblioteca/esquina_de_la_biblioteca_cerca_de_la_caseta.jpg', hotspots: [] },
+            { id: 'imagen9', title: 'Pano 9', path: 'imagenes_del_colegio/biblioteca/fin_del_fin_.jpg', hotspots: [] }
         ];
 
         let viewer = null, currentPano = panoramas[0], selectedHS = null, isEdit = true, draggingHS = null, isDragging = false, rotateDragging = false, rotateStartX = 0, rotateStartRotate = 0;
@@ -151,7 +162,7 @@
 
         function addHS(p, y) {
             const defaultTarget = document.getElementById('select-target').value || panoramas[0].id;
-            const newH = { pitch: p, yaw: y, targetId: defaultTarget, sourceImage: currentPano.id, color: 'white', w: 60, h: 60, rotate: 0, tilt: 0 };
+            const newH = { pitch: p, yaw: y, targetId: defaultTarget, sourceImage: currentPano.id, direction: 'forward', color: 'white', w: 60, h: 60, rotate: 0, tilt: 0 };
             currentPano.hotspots.push(newH);
             selectedHS = newH;
             renderHS();
@@ -173,6 +184,8 @@
                         inner.className = 'arrow-inner' + (selectedHS === hs ? ' selected' : '');
                         inner.style.width = hs.w + "px"; inner.style.height = hs.h + "px";
                         inner.style.transform = `rotate(${hs.rotate}deg) rotateX(${hs.tilt}deg)`;
+                        const directionNames = { forward: 'Adelante', backward: 'Atrás', down: 'Abajo', right: 'Derecha', left: 'Izquierda' };
+                        inner.title = `Flecha: ${directionNames[hs.direction] || 'Adelante'}`;
                         const f = { white: 'brightness(0) invert(1)', red: 'sepia(1) saturate(5) hue-rotate(-50deg)', blue: 'sepia(1) saturate(5) hue-rotate(180deg)', yellow: 'sepia(1) saturate(5) hue-rotate(10deg)' };
                         inner.style.filter = f[hs.color];
                         inner.style.touchAction = 'none';
@@ -255,6 +268,7 @@
         function syncMenu() {
             if(!selectedHS) return;
             document.getElementById('select-target').value = selectedHS.targetId;
+            document.getElementById('select-direction').value = selectedHS.direction || 'forward';
             document.getElementById('select-color').value = selectedHS.color;
             document.getElementById('range-rot').value = selectedHS.rotate;
             document.getElementById('range-tilt').value = selectedHS.tilt;
@@ -275,6 +289,7 @@
         document.getElementById('btn-add').onclick = () => addHS(viewer.getPitch(), viewer.getYaw());
         document.getElementById('btn-del').onclick = () => { if(selectedHS) { currentPano.hotspots = currentPano.hotspots.filter(h => h !== selectedHS); selectedHS = null; renderHS(); } };
         document.getElementById('select-target').onchange = (e) => { if(selectedHS) selectedHS.targetId = e.target.value; };
+        document.getElementById('select-direction').onchange = (e) => { if(selectedHS) selectedHS.direction = e.target.value; };
         document.getElementById('select-color').onchange = (e) => { if(selectedHS) { selectedHS.color = e.target.value; renderHS(); } };
         document.getElementById('btn-mode-view').onclick = () => { isEdit = false; document.body.classList.replace('edit-mode', 'view-mode'); renderHS(); };
         document.getElementById('btn-mode-edit').onclick = () => { isEdit = true; document.body.classList.replace('view-mode', 'edit-mode'); renderHS(); };
@@ -288,6 +303,8 @@
                         yaw: h.yaw,
                         sourceImage: p.id,
                         targetId: h.targetId || h.target || h.targetImage || null,
+                        direction: h.direction || 'forward',
+                        directionLabel: ({ forward: 'Adelante', backward: 'Atrás', down: 'Abajo', right: 'Derecha', left: 'Izquierda' })[h.direction || 'forward'],
                         color: h.color,
                         w: h.w,
                         h: h.h,

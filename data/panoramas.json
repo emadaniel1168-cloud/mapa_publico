@@ -2,7 +2,7 @@
   {
     "id": "imagen1",
     "title": "Pano 1",
-    "path": "images/imagen1.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/atras_de_la_biblieca_al_fondo_centro.jpg",
     "hotspots": [
       {
         "pitch": -31.664636713733646,
@@ -26,7 +26,7 @@
   {
     "id": "imagen2",
     "title": "Pano 2",
-    "path": "images/imagen2.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/biblioteca_casi_llegando_la_esquina_del_otro_lado.jpg",
     "hotspots": [
       {
         "pitch": -50.95501415527489,
@@ -61,7 +61,7 @@
   {
     "id": "imagen3",
     "title": "Pano 3",
-    "path": "images/imagen3.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/biblioteca_de_otro_lado_de_la_otra_entrada.jpg",
     "hotspots": [
       {
         "pitch": -32.456312583327524,
@@ -96,7 +96,7 @@
   {
     "id": "imagen4",
     "title": "Pano 4",
-    "path": "images/imagen4.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/biblioteca_del_otro_lado.jpg",
     "hotspots": [
       {
         "pitch": -28.625595121719638,
@@ -131,7 +131,7 @@
   {
     "id": "imagen5",
     "title": "Pano 5",
-    "path": "images/imagen5.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/casi_del_casi_llegando_al_fin_del_trayecto.jpg",
     "hotspots": [
       {
         "pitch": -21.237243190829204,
@@ -166,7 +166,7 @@
   {
     "id": "imagen7",
     "title": "Pano 7",
-    "path": "images/imagen7.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/entrada_de_la_biblioteca.jpg",
     "hotspots": [
       {
         "pitch": -22.4953338679765,
@@ -201,7 +201,7 @@
   {
     "id": "imagen8",
     "title": "Pano 8",
-    "path": "images/imagen8.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/esquina_de_la_biblioteca_cerca_de_la_caseta.jpg",
     "hotspots": [
       {
         "pitch": -29.558717790675015,
@@ -236,7 +236,7 @@
   {
     "id": "imagen9",
     "title": "Pano 9",
-    "path": "images/imagen9.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/fin_del_fin_.jpg",
     "hotspots": [
       {
         "pitch": -18.811799247301725,
@@ -271,7 +271,7 @@
   {
     "id": "imagen6",
     "title": "Panel 6",
-    "path": "images/imagen6.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/casi_llegando_al_fin_del_trayecto.jpg",
     "hotspots": [
       {
         "pitch": -28.178000558750387,
@@ -306,7 +306,7 @@
   {
     "id": "imagen10",
     "title": "Panel 10",
-    "path": "images/imagen10.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/fin_del_fin_del_trayecto_.jpg",
     "hotspots": [
       {
         "pitch": -44.055897974291625,
@@ -341,7 +341,7 @@
   {
     "id": "imagen11",
     "title": "Panel 11",
-    "path": "images/imagen11.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/fin_del_trayecto_del_lado_de_la_entrada.jpg",
     "hotspots": [
       {
         "pitch": -26.631318564269836,
@@ -376,7 +376,7 @@
   {
     "id": "imagen12",
     "title": "Panel 12",
-    "path": "images/imagen12.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/inicio_.jpg",
     "hotspots": [
       {
         "pitch": -19.172927640575935,
@@ -411,7 +411,7 @@
   {
     "id": "imagen13",
     "title": "Panel 13",
-    "path": "images/imagen13.jpeg",
+    "path": "imagenes_del_colegio/biblioteca/inicio_de_la_bilioteca.jpg",
     "hotspots": [
       {
         "pitch": -9.291218669062683,

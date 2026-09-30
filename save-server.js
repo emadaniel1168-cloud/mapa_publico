@@ -14,7 +14,7 @@ app.use((req, res, next) => {
 // Servir archivos estáticos del frontend
 app.use(express.static(path.join(__dirname)));
 
-const filePath = path.join(__dirname, 'data', 'colegio_santander.json');
+const filePath = path.join(__dirname, 'data', 'panoramas.json');
 
 app.post('/save', (req, res) => {
   const data = req.body;
@@ -22,7 +22,7 @@ app.post('/save', (req, res) => {
     // Crear copia de seguridad con timestamp antes de sobrescribir
     try {
       if (fs.existsSync(filePath)) {
-        const backupName = `colegio_santander.backup.${Date.now()}.json`;
+        const backupName = `panoramas.backup.${Date.now()}.json`;
         const backupPath = path.join(path.dirname(filePath), backupName);
         fs.copyFileSync(filePath, backupPath);
         console.log('Backup created at', backupPath);

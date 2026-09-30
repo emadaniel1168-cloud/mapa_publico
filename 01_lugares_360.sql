@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS lugares_360 (
   panorama_id VARCHAR(100) NOT NULL,
   titulo VARCHAR(150) NOT NULL,
   descripcion TEXT NULL,
-  id_horario INT NOT NULL,
+  id_horario INT NULL,
   pitch DECIMAL(8,3) NOT NULL DEFAULT 0,
   yaw DECIMAL(8,3) NOT NULL DEFAULT 0,
   activo TINYINT(1) NOT NULL DEFAULT 1,

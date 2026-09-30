@@ -8,6 +8,7 @@
 
 const API_URL = 'api.php';
 const profesorInput = document.getElementById('label-profesor');
+const cursoInput = document.getElementById('label-curso');
 const gradoInput = document.getElementById('label-grado');
 const salonInput = document.getElementById('label-salon');
 const diaInput = document.getElementById('label-dia');
@@ -96,8 +97,10 @@ function completarDesdeHorario() {
   if (!option || !option.dataset.horario) return;
 
   horarioSeleccionado = JSON.parse(option.dataset.horario);
+  if (cursoInput) cursoInput.value = horarioSeleccionado.materia || '';
   gradoInput.value = horarioSeleccionado.id_grado;
   salonInput.value = horarioSeleccionado.salon;
+  if (diaInput) diaInput.value = horarioSeleccionado.dia_semana === 'Miercoles' ? 'Miércoles' : (horarioSeleccionado.dia_semana || '');
 
   const horaInicioInput = document.getElementById('label-hora-inicio');
   const horaFinInput = document.getElementById('label-hora-fin');

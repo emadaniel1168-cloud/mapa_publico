@@ -4,14 +4,14 @@
 
 document.addEventListener('DOMContentLoaded', () => {
     let panoramas = [
-        { id: 'imagen1', title: 'Panorama 1', path: 'images/imagen1.jpeg', hotspots: [] },
-        { id: 'imagen2', title: 'Panorama 2', path: 'images/imagen2.jpeg', hotspots: [] },
-        { id: 'imagen3', title: 'Panorama 3', path: 'images/imagen3.jpeg', hotspots: [] },
-        { id: 'imagen4', title: 'Panorama 4', path: 'images/imagen4.jpeg', hotspots: [] },
-        { id: 'imagen5', title: 'Panorama 5', path: 'images/imagen5.jpeg', hotspots: [] },
-        { id: 'imagen7', title: 'Panorama 7', path: 'images/imagen7.jpeg', hotspots: [] },
-        { id: 'imagen8', title: 'Panorama 8', path: 'images/imagen8.jpeg', hotspots: [] },
-        { id: 'imagen9', title: 'Panorama 9', path: 'images/imagen9.jpeg', hotspots: [] }
+        { id: 'imagen1', title: 'Panorama 1', path: 'imagenes_del_colegio/biblioteca/atras_de_la_biblieca_al_fondo_centro.jpg', hotspots: [] },
+        { id: 'imagen2', title: 'Panorama 2', path: 'imagenes_del_colegio/biblioteca/biblioteca_casi_llegando_la_esquina_del_otro_lado.jpg', hotspots: [] },
+        { id: 'imagen3', title: 'Panorama 3', path: 'imagenes_del_colegio/biblioteca/biblioteca_de_otro_lado_de_la_otra_entrada.jpg', hotspots: [] },
+        { id: 'imagen4', title: 'Panorama 4', path: 'imagenes_del_colegio/biblioteca/biblioteca_del_otro_lado.jpg', hotspots: [] },
+        { id: 'imagen5', title: 'Panorama 5', path: 'imagenes_del_colegio/biblioteca/casi_del_casi_llegando_al_fin_del_trayecto.jpg', hotspots: [] },
+        { id: 'imagen7', title: 'Panorama 7', path: 'imagenes_del_colegio/biblioteca/entrada_de_la_biblioteca.jpg', hotspots: [] },
+        { id: 'imagen8', title: 'Panorama 8', path: 'imagenes_del_colegio/biblioteca/esquina_de_la_biblioteca_cerca_de_la_caseta.jpg', hotspots: [] },
+        { id: 'imagen9', title: 'Panorama 9', path: 'imagenes_del_colegio/biblioteca/fin_del_fin_.jpg', hotspots: [] }
     ];
 
     let viewer = null;
