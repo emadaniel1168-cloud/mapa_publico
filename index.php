@@ -68,7 +68,7 @@
             height: 100%;
             object-fit: fill;
             object-position: center center;
-            filter: grayscale(100%) contrast(1.18);
+            filter: contrast(1.18);
             opacity: 1;
             border: 2px solid rgba(255, 255, 255, 0.75);
             border-radius: 8px;
@@ -80,6 +80,7 @@
             const targetDirection = resolveKeyboardTravelDirection(direction);
             const chosenMatch = availableByDirection.get(targetDirection);
         #mapa-google-overlay:hover { opacity: 1; transform: scale(1.015); }
+        #mapa-google-overlay.map-editing:hover { transform: none; }
         #mapa-google-wrapper.map-editing { outline: 3px solid var(--primary); border-radius: 8px; }
         #mapa-google-overlay.map-editing { outline: 3px solid var(--primary); }
         #map-guide-modal { display: none; position: fixed; inset: 0; z-index: 3000; background: rgba(8, 12, 20, .82); padding: 3vh 3vw; }
@@ -124,8 +125,10 @@
 
         #route-line { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; z-index: 20; overflow: visible; display: none !important; }
         #route-line { z-index: 10; }
-        #route-line path { fill: none; stroke: #10b981; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 3px rgba(16,185,129,0.9)); }
-        #route-line circle { fill: #10b981; stroke: #fff; stroke-width: 3; }
+        #route-line path { fill: none; stroke: #38bdf8; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 0 3px rgba(56,189,248,0.9)); }
+        #route-line circle { fill: #38bdf8; stroke: #fff; stroke-width: 3; }
+        #btn-show-route { background: #2563eb !important; border-color: #60a5fa !important; }
+        #route-status { color: #93c5fd !important; }
         .label-form-panel {
             position: absolute; left: 24px; top: 24px; width: min(320px, calc(100% - 48px)); max-height: calc(100% - 48px); z-index: 60;
             background: rgba(17, 24, 39, 0.92); border: 1px solid rgba(255,255,255,0.12);
@@ -152,6 +155,9 @@
         .alert-full-fields { display: grid; gap: 8px; }
         .alert-form-simple .alert-full-fields { display: none !important; }
         .alert-form-simple .form-simple-hide { display: none !important; }
+        .form-simple-only { display: none; }
+        .alert-form-simple .form-simple-only { display: block; }
+        .view-form-mode .form-simple-only { display: none !important; }
         .sugerencias-profesores { display: grid; gap: 5px; margin-top: 6px; }
         .view-form-mode .sugerencias-profesores { display: none !important; }
         .sugerencia-profesor { width: 100%; text-align: left; padding: 7px 8px; border-radius: 6px; border: 1px solid #334155; background: rgba(15, 23, 42, 0.88); color: white; cursor: pointer; }
@@ -362,9 +368,10 @@
 
         /* Ajustes de uso táctil y distribución para pantallas pequeñas. */
         @media (max-width: 700px) {
-            body { height: 100dvh; overflow: hidden; }
+            body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
             #top-bar {
                 height: auto;
+                flex: 0 0 auto;
                 min-height: 56px;
                 padding: 8px 10px;
                 gap: 8px;
@@ -377,18 +384,20 @@
             #save-status { display: none; }
             #btn-export { min-height: 38px; padding: 7px 10px !important; font-size: 12px; }
             #main-layout {
-                height: calc(100dvh - 56px);
+                height: auto;
+                flex: 1 1 auto;
                 min-height: 0;
                 flex-direction: column;
             }
-            #viewer-wrapper { flex: 1 1 56%; min-height: 0; width: 100%; }
+            #viewer-wrapper { flex: 1 1 56%; min-height: 0; min-width: 0; width: 100%; }
             #panorama-container { min-height: 0; }
             #side-menu {
                 width: 100%;
                 height: 44%;
                 min-height: 180px;
                 flex: 0 1 44%;
-                padding: 10px;
+                min-width: 0;
+                padding: 10px 10px max(10px, env(safe-area-inset-bottom));
                 gap: 10px;
                 border-top: 2px solid #444;
                 -webkit-overflow-scrolling: touch;
@@ -399,8 +408,25 @@
             #side-menu .quick-nav-toggle,
             #side-menu .quick-nav-actions button { min-height: 42px; }
             #side-menu .menu-section { width: 100%; }
-            #mapa-google-wrapper { left: 8px; bottom: 8px; width: min(45vw, 190px); max-height: 22vh; }
+            #side-menu button { overflow-wrap: anywhere; }
+            #mapa-google-wrapper { left: 10px !important; bottom: 10px !important; width: clamp(155px, 42vw, 185px) !important; max-height: 22vh !important; }
             #map-calendar { top: 8px; right: 8px; width: min(190px, calc(100% - 16px)); padding: 7px; }
+            body.view-mode #side-menu {
+                position: fixed;
+                top: calc(80px + env(safe-area-inset-top));
+                left: 10px;
+                width: min(190px, calc(100vw - 20px));
+                height: auto;
+                min-height: 0;
+                flex: 0 0 auto;
+                max-height: calc(100dvh - 92px - env(safe-area-inset-bottom));
+                overflow-y: auto;
+                z-index: 1100;
+            }
+            body.view-mode .quick-nav-card { gap: 6px; padding: 6px; }
+            body.view-mode .quick-nav-toggle { min-height: 38px; padding: 7px 8px; border-radius: 7px; font-size: 12px; line-height: 1.2; }
+            body.view-mode .quick-nav-panel { gap: 6px; }
+            body.view-mode .quick-nav-card select { padding: 8px; font-size: 12px; }
             .weekly-calendar-days { grid-template-columns: repeat(4, 1fr); }
             .weekly-calendar-day { min-height: 32px; padding: 5px 2px; }
             .label-form-panel { z-index: 100; }
@@ -424,10 +450,49 @@
             #top-bar > div:last-child { order: 3; margin-left: auto; }
             #viewer-wrapper { flex-basis: 52%; }
             #side-menu { height: 48%; flex-basis: 48%; }
-            #mapa-google-wrapper { width: 150px; }
+            #mapa-google-wrapper { width: clamp(150px, 40vw, 160px) !important; }
+            body.view-mode #side-menu {
+                top: calc(112px + env(safe-area-inset-top));
+                max-height: calc(100dvh - 124px - env(safe-area-inset-bottom));
+            }
             #map-calendar { width: 170px; }
             #map-guide-modal-stage { flex-basis: 34vh; min-height: 190px; }
             #map-guide-modal-header h2 { max-width: 42vw; }
+        }
+
+        @media (max-height: 500px) and (orientation: landscape) {
+            body { display: flex; flex-direction: column; height: 100vh; height: 100dvh; }
+            #top-bar { flex: 0 0 auto; min-height: 44px; padding: 4px 10px; }
+            #main-layout { height: auto; flex: 1 1 auto; min-height: 0; flex-direction: row; }
+            #viewer-wrapper { flex: 1 1 auto; min-width: 0; min-height: 0; width: auto; }
+            #mapa-google-wrapper { left: 10px !important; bottom: 10px !important; width: clamp(145px, 20vw, 175px) !important; max-height: 24vh !important; }
+            #side-menu {
+                width: clamp(220px, 30vw, 300px);
+                height: 100%;
+                min-height: 0;
+                flex: 0 0 clamp(220px, 30vw, 300px);
+                padding: 8px;
+                gap: 8px;
+                border-top: 0;
+                border-left: 2px solid #444;
+            }
+            body.view-mode #side-menu {
+                position: fixed;
+                top: calc(78px + env(safe-area-inset-top));
+                left: 10px;
+                width: min(280px, calc(100vw - 20px));
+                height: auto;
+                min-height: 0;
+                flex: 0 0 auto;
+                max-height: calc(100dvh - 90px - env(safe-area-inset-bottom));
+                overflow-y: auto;
+                z-index: 1100;
+            }
+            #side-menu > button,
+            #side-menu select,
+            #side-menu input,
+            #side-menu .quick-nav-toggle,
+            #side-menu .quick-nav-actions button { min-height: 38px; }
         }
     </style>
 </head>
@@ -459,6 +524,11 @@
                             <option value="simple">Solo nombre</option>
                         </select>
                     </div>
+                    <label class="form-simple-only">Lugar guardado
+                        <select id="label-lugar-db">
+                            <option value="">Cargando lugares...</option>
+                        </select>
+                    </label>
                     <label id="label-profesor-field" style="font-size:11px;color:#d3e1f4;">
                         <span id="label-profesor-label">Profesor</span>
                         <input id="label-profesor" type="text" placeholder="Escribe el profesor" value="">
@@ -715,6 +785,9 @@
                 <h3>Elementos del mapa</h3>
                 <p class="map-editor-help">Elige una herramienta y pulsa sobre el mapa grande. Haz clic en un elemento para editar sus atributos.</p>
                 <div class="map-control-row"><button id="map-tool-path" type="button">＋ Camino</button><button id="map-tool-place" type="button">＋ Salón/Lugar</button><button id="map-tool-zone" type="button">＋ Área prohibida</button></div>
+                <label for="map-database-place-select" style="display:block;font-size:11px;color:#d3e1f4;margin-top:8px;">Lugar de la base de datos</label>
+                <select id="map-database-place-select" style="width:100%;margin:5px 0 8px;padding:7px;background:#111827;color:#fff;border:1px solid #4b5563;border-radius:4px;"><option value="">Abre el editor para cargar lugares</option></select>
+                <button id="map-tool-database-place" type="button" style="width:100%;margin-bottom:8px;">＋ Punto lugar</button>
                 <div class="map-control-row"><button id="map-finish-path" type="button">Terminar camino</button><button id="map-clear-guide" type="button">Limpiar mapa</button></div>
                 <div class="map-layers-title">Capas visibles</div>
                 <label class="map-layer-toggle"><input id="layer-paths" type="checkbox" checked> Caminos</label><label class="map-layer-toggle"><input id="layer-places" type="checkbox" checked> Salones y lugares</label><label class="map-layer-toggle"><input id="layer-zones" type="checkbox" checked> Áreas prohibidas</label><label class="map-layer-toggle"><input id="map-grid-visible" type="checkbox"> Líneas X/Y</label><label class="map-layer-toggle"><input id="map-snap-grid" type="checkbox" checked> Ajustar a líneas</label>
@@ -741,7 +814,7 @@
                 </div>
                 <div id="map-element-editor"><strong>Elemento seleccionado</strong><label>Nombre</label><input id="map-element-name" type="text"><label>Color</label><input id="map-element-color" type="color" value="#2563c7"><label>Forma</label><select id="map-element-shape"><option value="street">Calle rectangular blanca</option><option value="line">Línea</option><option value="circle">Circular</option><option value="semicircle">Semicírculo</option><option value="rect">Rectangular</option><option value="diamond">Rombo</option></select><label>Ancho / grosor de la calle</label><input id="map-element-width" type="range" min="1" max="35" value="7"><span id="map-element-width-value">7</span><label>Largo de la calle</label><input id="map-element-length" type="range" min="40" max="180" value="100"><span id="map-element-length-value">100%</span><p class="map-editor-help">Arrastra los puntos blancos que aparecen sobre la calle para cambiar su recorrido.</p><label>Alto</label><input id="map-element-height" type="range" min="1" max="35" value="8"><span id="map-element-height-value">8</span><div class="map-control-row"><button id="map-element-copy" type="button">Copiar</button><button id="map-element-paste" type="button">Pegar</button></div><div class="map-control-row"><button id="map-element-front" type="button">Al frente</button><button id="map-element-back" type="button">Atrás</button></div><button id="map-element-delete" type="button">Eliminar elemento</button></div>
                 <div class="map-control-row"><label for="map-opacity">Opacidad</label><input id="map-opacity" type="range" min="35" max="100" value="92"><span id="map-opacity-value">92%</span></div>
-                <div class="map-control-row"><label for="map-grayscale">Grises</label><input id="map-grayscale" type="range" min="0" max="100" value="100"><span id="map-grayscale-value">100%</span></div>
+                <div class="map-control-row"><label for="map-grayscale">Grises</label><input id="map-grayscale" type="range" min="0" max="100" value="0"><span id="map-grayscale-value">0%</span></div>
                 <button id="btn-close-map-editor" type="button">Cerrar sin salir del visor</button>
             </div>
         </div>
@@ -775,19 +848,23 @@
         let minimapAdvancePoints = [];
         const STORAGE_KEY = 'mapa360.panoramas.v3';
         const PENDING_STORAGE_KEY = 'mapa360.panoramas.pending.v3';
+        const PENDING_IMPORT_KEY = 'mapa360.pending-import.entrada-principal.v2';
         const START_IMAGE_KEY = 'mapa360.start-image.v1';
         const DEFAULT_START_IMAGE_PATH = 'imagenes_del_colegio/nueva_puerta/porteria.jpeg';
         const MINIMAP_INDICATOR_KEY = 'mapa360.minimap.indicator.v1';
         const MINIMAP_ADVANCE_KEY = 'mapa360.minimap.advance.v1';
         const MINIMAP_LOCATIONS_FILE = 'data/ubicaciones_puntos_mapa.json';
         const MINIMAP_LOCATIONS_VERSION_KEY = 'mapa360.minimap.locations-import.v1';
-        const MINIMAP_LOCATIONS_VERSION = '2026-09-27';
+        const MINIMAP_LOCATIONS_VERSION = '2026-10-04';
         const SAVE_DELAY_MS = 500;
         const MAP_SETTINGS_KEY = 'mapa360.google-map.settings.v1';
-        const DEFAULT_MAP_SETTINGS = { width: 300, opacity: 92, grayscale: 100, left: 16, bottom: 16, zoom: 200, viewX: 50, viewY: 50, followIndicator: true };
+        const MAP_COLOR_MIGRATION_KEY = 'mapa360.google-map.color-migration.v1';
+        const DEFAULT_MAP_SETTINGS = { width: 300, opacity: 92, grayscale: 0, left: 16, bottom: 16, zoom: 200, viewX: 50, viewY: 50, followIndicator: true };
         let mapSettings = { ...DEFAULT_MAP_SETTINGS };
         const MAP_GUIDE_KEY = 'mapa360.school-guide.v1';
         let mapGuide = { paths: [], places: [], zones: [], layers: { paths: true, places: true, zones: true, user: true }, panoramaPositions: {} };
+        let mapPlaceCatalog = [];
+        let selectedMapDatabasePlace = null;
         let activeMapTool = null;
         let draftPath = [];
         let selectedMapElement = null;
@@ -796,7 +873,9 @@
         let mapClipboard = null;
         let horariosColegio = [];
         let lugaresSugeridos = [];
+        let lugaresDisponibles = [];
         let lugaresBaseDeDatos = [];
+        let lugaresCatalogo = [];
         let calendarioDia = '';
         let calendarioHora = '';
 
@@ -826,6 +905,22 @@
             }
         }
 
+        async function cargarCatalogoLugares() {
+            try {
+                const response = await fetch('api.php?action=catalogo_lugares', { cache: 'no-store' });
+                const payload = await response.json();
+                lugaresCatalogo = (Array.isArray(payload?.items) ? payload.items : [])
+                    .map(item => ({
+                        id_lugar: String(item.id_lugar ?? item.id ?? '').trim(),
+                        titulo: String(item.titulo || item.nombre || '').trim()
+                    }))
+                    .filter(item => item.id_lugar && item.titulo);
+            } catch (error) {
+                console.warn('No se pudo cargar el catálogo de lugares', error);
+                lugaresCatalogo = [];
+            }
+        }
+
         async function cargarHorariosColegio() {
             try {
                 const response = await fetch('data/horarios.json', { cache: 'no-store' });
@@ -844,6 +939,7 @@
                         curso: h.materia,
                         profesor: h.id_profesor,
                         salon: h.salon,
+                        hora_fin_sena: h.hora_fin_sena,
                         hora_inicio: h.hora_inicio,
                         hora_fin: h.hora_fin
                     }));
@@ -890,13 +986,59 @@
         async function cargarSugerenciasNombresLugares() {
             const input = document.getElementById('label-profesor');
             const box = document.getElementById('sugerencias-profesores');
+            const select = document.getElementById('label-lugar-db');
             if (!input || !box) return;
             try {
-                const panoramaId = currentPano && currentPano.id ? currentPano.id : '';
-                const url = panoramaId ? `api.php?action=lugares&panorama_id=${encodeURIComponent(panoramaId)}` : 'api.php?action=lugares';
-                const response = await fetch(url, { cache: 'no-store' });
+                const response = await fetch('api.php?action=catalogo_lugares', { cache: 'no-store' });
                 const payload = await response.json();
-                lugaresSugeridos = [...new Set((Array.isArray(payload?.items) ? payload.items : []).map(item => String(item.titulo || '').trim()).filter(Boolean))];
+                if (!response.ok || !payload?.ok) {
+                    throw new Error(payload?.error || 'No se pudieron cargar los lugares.');
+                }
+                const catalogo = (Array.isArray(payload?.items) ? payload.items : []).map(item => ({ ...item, fuente: 'catalogo' }));
+                let guardados = [];
+                try {
+                    const panoramaId = currentPano?.id || '';
+                    const url = panoramaId ? `api.php?action=lugares&panorama_id=${encodeURIComponent(panoramaId)}` : 'api.php?action=lugares';
+                    const lugaresResponse = await fetch(url, { cache: 'no-store' });
+                    const lugaresPayload = await lugaresResponse.json();
+                    if (lugaresResponse.ok && lugaresPayload?.ok && Array.isArray(lugaresPayload.items)) {
+                        guardados = lugaresPayload.items.map(item => ({ ...item, fuente: 'menu' }));
+                    }
+                } catch (error) {
+                    console.warn('No se pudieron cargar los lugares guardados del menú', error);
+                }
+                lugaresDisponibles = [...catalogo, ...guardados];
+                lugaresSugeridos = [...new Set(lugaresDisponibles.map(item => String(item.titulo || '').trim()).filter(Boolean))];
+                if (select) {
+                    const selectedId = selectedCircle?.idLugar
+                        ? `catalogo:${selectedCircle.idLugar}`
+                        : selectedCircle?.idLugar360 ? `menu:${selectedCircle.idLugar360}` : '';
+                    select.innerHTML = '';
+                    const placeholder = document.createElement('option');
+                    placeholder.value = '';
+                    placeholder.textContent = lugaresDisponibles.length
+                        ? 'Selecciona un lugar de la base de datos'
+                        : 'No hay lugares registrados';
+                    select.appendChild(placeholder);
+                    lugaresDisponibles.forEach(item => {
+                        const option = document.createElement('option');
+                        option.value = `${item.fuente}:${item.id_lugar ?? ''}`;
+                        option.dataset.source = item.fuente;
+                        option.dataset.placeId = String(item.id_lugar ?? '');
+                        option.dataset.title = String(item.titulo || '').trim();
+                        option.textContent = item.fuente === 'menu'
+                            ? `${option.dataset.title || 'Lugar'} · Guardado`
+                            : option.dataset.title || `Lugar ${option.dataset.placeId}`;
+                        select.appendChild(option);
+                    });
+                    select.value = selectedId;
+                    select.onchange = () => {
+                        const option = select.selectedOptions[0];
+                        if (!option?.value) return;
+                        input.value = option.dataset.title || option.textContent;
+                        box.innerHTML = '';
+                    };
+                }
                 box.innerHTML = '';
                 if (!lugaresSugeridos.length) {
                     const empty = document.createElement('div');
@@ -914,6 +1056,8 @@
                     option.addEventListener('mousedown', event => {
                         event.preventDefault();
                         input.value = nombre;
+                        const lugar = lugaresDisponibles.find(item => String(item.titulo || '').trim() === nombre);
+                        if (select && lugar) select.value = `${lugar.fuente}:${lugar.id_lugar}`;
                         box.innerHTML = '';
                     });
                     box.appendChild(option);
@@ -921,8 +1065,17 @@
             } catch (error) {
                 console.warn('No se pudieron cargar los nombres desde lugares_360', error);
                 lugaresSugeridos = [];
+                lugaresDisponibles = [];
+                if (select) select.innerHTML = '<option value="">No se pudieron cargar los lugares</option>';
                 box.innerHTML = '';
             }
+        }
+
+        function getSelectedDatabasePlace(expectedTitle) {
+            const option = document.getElementById('label-lugar-db')?.selectedOptions[0];
+            const id = Number(option?.dataset.placeId);
+            if (!option?.value || option.dataset.title !== expectedTitle || !Number.isSafeInteger(id) || id <= 0) return null;
+            return { fuente: option.dataset.source, id };
         }
 
         function configurarAutocompletadoProfesores() {
@@ -934,6 +1087,10 @@
             input.addEventListener('input', () => {
                 const query = input.value.trim().toLowerCase();
                 const isSimpleMode = document.getElementById('label-alert-form-mode')?.value === 'simple';
+                const placeSelect = document.getElementById('label-lugar-db');
+                if (isSimpleMode && placeSelect?.selectedOptions[0]?.dataset.title !== input.value.trim()) {
+                    placeSelect.value = '';
+                }
                 box.innerHTML = '';
                 if (isSimpleMode) {
                     const nombres = lugaresSugeridos.length ? lugaresSugeridos : [];
@@ -1276,7 +1433,7 @@
 
         function setLabelFormEditable(isEditable) {
             const ids = [
-                'label-profesor', 'label-grado', 'label-salon', 'label-dia', 'label-id-horario',
+                'label-profesor', 'label-lugar-db', 'label-grado', 'label-salon', 'label-dia', 'label-id-horario',
                 'label-hora-inicio', 'label-hora-fin', 'label-hora', 'label-titulo', 'label-descripcion',
                 'label-pitch', 'label-yaw', 'label-color', 'label-size', 'label-marker-size', 'label-is-alert'
             ];
@@ -1300,7 +1457,7 @@
             }
         }
 
-        function setNoClassFormState(isNoClass) {
+        function setNoClassFormState(isNoClass, messageText = 'NO HAY CLASE POR EL MOMENTO') {
             const formPanel = document.getElementById('label-form-panel');
             if (!formPanel) return;
             formPanel.classList.toggle('no-class-mode', isNoClass);
@@ -1308,6 +1465,7 @@
             formPanel.classList.remove('circle-form-mode', 'view-form-mode');
             const message = document.getElementById('no-class-message');
             if (message) {
+                message.textContent = messageText;
                 message.style.display = isNoClass ? 'flex' : 'none';
             }
             const header = formPanel.querySelector('.label-form-header span');
@@ -1336,6 +1494,7 @@
         function openLabelEditorFor(label) {
             if (!label) return;
             selectedLabel = label;
+            setNoClassFormState(false);
             document.getElementById('label-form-panel').classList.remove('view-form-mode');
             setLabelFormEditable(true);
             fillLabelFormFromSelection(label);
@@ -1507,6 +1666,13 @@
             return parts.length === 2 && parts.every(Number.isFinite) ? parts[0] * 60 + parts[1] : -1;
         }
 
+        function getHoraFinEfectivaHorario(item) {
+            const horaFinSena = String(item?.hora_fin_sena || '').trim();
+            if (horaFinSena) return horaFinSena;
+            const hasta = String(item?.curso || '').match(/\bhasta\s+(\d{1,2}):([0-5]\d)\b/i);
+            return hasta ? `${hasta[1].padStart(2, '0')}:${hasta[2]}` : (item?.hora_fin || '');
+        }
+
         function diaNormalizado(value) {
             return String(value || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
         }
@@ -1522,19 +1688,25 @@
             });
             if (!horariosDelDia.length) return false;
             return horariosDelDia.some(item => {
-                const fin = horarioEnMinutos(item.hora_fin);
+                const fin = horarioEnMinutos(getHoraFinEfectivaHorario(item));
                 return fin > ahora;
             });
         }
 
         function actualizarHorarioDelMarcador(marker) {
-            if (!marker || !calendarioDia || !calendarioHora || !horariosColegio.length) return;
+            if (!marker) return;
+            if (marker.type === 'simple-alert' || marker.alertMode === 'simple') {
+                setNoClassFormState(false);
+                setClassDataFormState(false);
+                return;
+            }
+            if (!calendarioDia || !calendarioHora || !horariosColegio.length) return;
             const markerRoom = String(marker.salon || '').trim().toLowerCase();
             if (!markerRoom) return;
             const selectedMinutes = horarioEnMinutos(calendarioHora);
             const horario = horariosColegio.find(item => {
                 const start = horarioEnMinutos(item.hora_inicio);
-                const end = horarioEnMinutos(item.hora_fin);
+                const end = horarioEnMinutos(getHoraFinEfectivaHorario(item));
                 return String(item.salon || '').trim().toLowerCase() === markerRoom
                     && diaNormalizado(item.dia) === diaNormalizado(calendarioDia)
                     && selectedMinutes >= start && selectedMinutes < end;
@@ -1543,8 +1715,7 @@
             if (!horario) {
                 const profesorActual = String(document.getElementById('label-profesor')?.value || selectedCircle?.profesor || '').trim();
                 if (profesorActual && profesorTieneClasesRestantes(profesorActual, calendarioDia, calendarioHora)) {
-                    setNoClassFormState(true);
-                    set('label-profesor', `${profesorActual} está en descanso`);
+                    setNoClassFormState(true, `${profesorActual} está en descanso.`);
                     set('label-curso', '');
                     set('label-grado', '');
                     set('label-id-horario', '');
@@ -1554,8 +1725,10 @@
                     set('weekly-calendar-time', calendarioHora);
                     return;
                 }
-                setNoClassFormState(true);
-                set('label-profesor', 'NO HAY CLASE POR EL MOMENTO');
+                const noClassMessage = profesorActual
+                    ? `El profesor ${profesorActual} no tiene clase por el momento.`
+                    : 'No hay clase por el momento.';
+                setNoClassFormState(true, noClassMessage);
                 set('label-curso', '');
                 set('label-grado', '');
                 set('label-id-horario', '');
@@ -1592,6 +1765,7 @@
             selectedLabel = alert;
             selectedCircle = null;
             const formPanel = document.getElementById('label-form-panel');
+            setNoClassFormState(false);
             formPanel.classList.add('view-form-mode');
             const header = formPanel.querySelector('.label-form-header span');
             if (header) header.textContent = 'Información del signo de exclamación';
@@ -1804,7 +1978,7 @@
                 currentPano.labels.push(copy);
                 selectedHS = null;
                 selectedCircle = null;
-                selectedLabel = copy;
+                selectedLabel = copy;M
                 renderLabels();
             }
 
@@ -1814,9 +1988,24 @@
 
         async function guardarCambiosInmediatos(mensaje) {
             try {
+                if (saveTimer) {
+                    clearTimeout(saveTimer);
+                    saveTimer = null;
+                }
                 const copia = JSON.parse(JSON.stringify(panoramas));
                 localStorage.setItem(STORAGE_KEY, JSON.stringify(copia));
                 localStorage.setItem(PENDING_STORAGE_KEY, JSON.stringify(copia));
+                updateSaveStatus('Guardando cambios...', true);
+                const response = await fetch('api.php?action=guardar_panoramas', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(copia)
+                });
+                const resultado = await response.json();
+                if (!response.ok || !resultado.ok) {
+                    throw new Error(resultado.error || 'El servidor no pudo guardar los cambios.');
+                }
+                localStorage.removeItem(PENDING_STORAGE_KEY);
                 updateSaveStatus(mensaje || 'Guardado correctamente.', false);
                 const formStatus = document.getElementById('alert-save-status');
                 if (formStatus) formStatus.textContent = mensaje || 'Guardado correctamente.';
@@ -1824,6 +2013,8 @@
             } catch (error) {
                 console.error('Error al guardar el signo de exclamación:', error);
                 updateSaveStatus('No se pudo guardar: ' + error.message, false);
+                const formStatus = document.getElementById('alert-save-status');
+                if (formStatus) formStatus.textContent = 'No se pudo guardar en el servidor.';
                 alert('No se pudo guardar el signo de exclamación.');
                 return false;
             }
@@ -1863,7 +2054,7 @@
             const horaFin = horaFinInput ? horaFinInput.value || '' : '';
             const hora = horaInicio && horaFin ? `${horaInicio} - ${horaFin}` : horaInicio || horaFin || '';
             const titulo = document.getElementById('label-titulo').value.trim();
-            const descripcion = isSimpleAlertMode ? '' : document.getElementById('label-descripcion').value.trim();
+            const descripcion = isSimpleAlertMode ? '' : document.getElementById('label-descripcion')?.value.trim() || '';
             const color = document.getElementById('label-color').value || '#22c55e';
             if (!currentPano || !viewer) {
                 updateSaveStatus('El visor todavía está cargando; no se pudo colocar el punto.', false);
@@ -1903,7 +2094,18 @@
 
                 const isPlaceMarker = ['exclamation', 'simple-alert'].includes(selectedCircle.type);
                 const markerName = (profesor || titulo || '').trim();
-                if (isPlaceMarker && markerName) {
+                const selectedPlace = isSimpleAlertMode ? getSelectedDatabasePlace(profesor) : null;
+                if (selectedPlace?.fuente === 'catalogo') {
+                    selectedCircle.idLugar = selectedPlace.id;
+                    delete selectedCircle.idLugar360;
+                } else if (selectedPlace?.fuente === 'menu') {
+                    selectedCircle.idLugar360 = selectedPlace.id;
+                    delete selectedCircle.idLugar;
+                } else if (isSimpleAlertMode) {
+                    delete selectedCircle.idLugar;
+                    delete selectedCircle.idLugar360;
+                }
+                if (isPlaceMarker && markerName && !selectedPlace) {
                     const saveFn = typeof window.guardarLugarEnBaseDeDatos === 'function' ? window.guardarLugarEnBaseDeDatos : null;
                     if (saveFn) {
                         const ok = await saveFn();
@@ -1926,13 +2128,43 @@
                     alert('Escribe un nombre para guardar el lugar simple.');
                     return;
                 }
-                if (typeof window.guardarLugarEnBaseDeDatos === 'function') {
+                let selectedPlace = getSelectedDatabasePlace(nombreSimple);
+                if (!selectedPlace && typeof window.guardarLugarEnBaseDeDatos === 'function') {
                     const ok = await window.guardarLugarEnBaseDeDatos();
                     if (!ok) return;
+                    const catalogPlace = lugaresDisponibles.find(item =>
+                        item.fuente === 'catalogo'
+                        && String(item.titulo || '').trim().toLowerCase() === nombreSimple.toLowerCase()
+                    );
+                    if (catalogPlace) selectedPlace = { fuente: 'catalogo', id: Number(catalogPlace.id_lugar) };
                 }
+                const simpleHotspot = {
+                    pitch,
+                    yaw,
+                    sourceImage: currentPano.id,
+                    type: 'simple-alert',
+                    targetId: currentPano.id,
+                    direction: 'forward',
+                    directionLabel: 'Adelante',
+                    color,
+                    w: 70,
+                    h: 70,
+                    rotate: 0,
+                    tilt: 0,
+                    profesor: nombreSimple,
+                    title: nombreSimple,
+                    alertMode: 'simple'
+                };
+                if (selectedPlace?.fuente === 'catalogo') simpleHotspot.idLugar = selectedPlace.id;
+                if (selectedPlace?.fuente === 'menu') simpleHotspot.idLugar360 = selectedPlace.id;
+                currentPano.hotspots = Array.isArray(currentPano.hotspots) ? currentPano.hotspots : [];
+                currentPano.hotspots.push(simpleHotspot);
+                renderHS();
+                const guardado = await guardarCambiosInmediatos('El nombre del lugar se guardó y se colocó en el mapa.');
+                if (!guardado) return;
                 alertPlacementMode = false;
                 closeLabelForm();
-                alert('La información del signo de exclamación se guardó correctamente.');
+                alert('El nombre del lugar se guardó y se colocó en el mapa.');
                 return;
             }
 
@@ -2076,12 +2308,39 @@
             if (!Array.isArray(panoramas) || !panoramas.length) {
                 console.warn('No hay dataset real cargado para colegio_santander.');
             }
+            const sourcePanoramas = loadedFromFile ? panoramas : null;
             try {
                 const pending = localStorage.getItem(PENDING_STORAGE_KEY);
                 if (pending) {
                     const parsedPending = JSON.parse(pending);
                     if (Array.isArray(parsedPending) && parsedPending.length) {
                         panoramas = normalizePanoramas(parsedPending);
+                        if (sourcePanoramas && !localStorage.getItem(PENDING_IMPORT_KEY)) {
+                            const sourcePanorama = sourcePanoramas.find(item => item.id === 'foto-catalogo-0181');
+                            const sourceHotspot = sourcePanorama?.hotspots?.find(item =>
+                                item.profesor === 'entrada_principal'
+                                && Number(item.pitch) === 15.859890309188858
+                                && Number(item.yaw) === -3.5903270130231535
+                            );
+                            const pendingPanorama = panoramas.find(item => item.id === 'foto-catalogo-0181');
+                            if (sourceHotspot && pendingPanorama) {
+                                pendingPanorama.hotspots = Array.isArray(pendingPanorama.hotspots) ? pendingPanorama.hotspots : [];
+                                const pendingHotspot = pendingPanorama.hotspots.find(item =>
+                                    Number(item.pitch) === Number(sourceHotspot.pitch)
+                                    && Number(item.yaw) === Number(sourceHotspot.yaw)
+                                    && item.profesor === sourceHotspot.profesor
+                                );
+                                if (pendingHotspot) {
+                                    pendingHotspot.type = sourceHotspot.type;
+                                    pendingHotspot.title = sourceHotspot.title;
+                                    pendingHotspot.alertMode = sourceHotspot.alertMode;
+                                    pendingHotspot.idLugar = sourceHotspot.idLugar;
+                                } else {
+                                    pendingPanorama.hotspots.push(JSON.parse(JSON.stringify(sourceHotspot)));
+                                }
+                                localStorage.setItem(PENDING_IMPORT_KEY, '1');
+                            }
+                        }
                     }
                 }
             } catch (e) {
@@ -2399,10 +2658,11 @@
         function openCircleForm(circle, editable = true) {
             const set = (id, value) => { const input = document.getElementById(id); if (input) input.value = value || ''; };
             const formPanel = document.getElementById('label-form-panel');
+            setNoClassFormState(false);
             formPanel.classList.add('circle-form-mode');
             formPanel.classList.toggle('view-form-mode', !editable);
-            formPanel.classList.toggle('class-data-mode', circle.type === 'exclamation' || circle.type === 'simple-alert');
-            const isSimple = circle.type === 'simple-alert';
+            const isSimple = circle.type === 'simple-alert' || circle.alertMode === 'simple';
+            formPanel.classList.toggle('class-data-mode', !isSimple && circle.type === 'exclamation');
             setAlertFormMode(isSimple ? 'simple' : 'full');
             const suggestions = document.getElementById('sugerencias-profesores');
             if (suggestions) suggestions.innerHTML = '';
@@ -2415,7 +2675,7 @@
             set('label-id-horario', circle.idHorario);
             set('label-hora-inicio', circle.horaInicio);
             set('label-hora-fin', circle.horaFin);
-            actualizarHorarioDelMarcador(circle);
+            if (!isSimple) actualizarHorarioDelMarcador(circle);
             set('label-titulo', circle.titulo || circle.title || '');
             set('label-descripcion', circle.descripcion || circle.description || '');
             document.getElementById('label-is-alert').checked = !!(circle.alertMode || circle.title || circle.titulo || circle.descripcion || circle.description);
@@ -2454,6 +2714,9 @@
             if (destination) destination.value = '';
             setRouteStatus('');
             updateRouteLine();
+            if (viewer && currentPano) renderHS();
+            renderMiniMap();
+            renderMapGuide();
         }
 
         function isActiveRouteHotspot(hs) {
@@ -2490,7 +2753,8 @@
             if (cfg && cfg.hotSpots) [...cfg.hotSpots].forEach(h => viewer.removeHotSpot(h.id));
 
             currentPano.hotspots.forEach((hs, i) => {
-                const normalizedColor = isActiveRouteHotspot(hs) ? 'green' : (hs.color || 'white');
+                const isArrow = !hs.type || hs.type === 'arrow';
+                const normalizedColor = isActiveRouteHotspot(hs) || (isArrow && hs.color === 'green') ? 'blue' : (hs.color || 'white');
                 const isExclamationLike = hs.type === 'exclamation' || hs.type === 'simple-alert';
                 viewer.addHotSpot({
                     "id": "h"+i, "pitch": hs.pitch, "yaw": hs.yaw, "cssClass": hs.type === 'circle' ? 'circle-hotspot' : isExclamationLike ? 'exclamation-hotspot' : 'custom-arrow',
@@ -2513,10 +2777,10 @@
                             inner.style.boxShadow = `0 0 0 3px ${markerColor}59, 0 4px 12px rgba(0, 0, 0, 0.45)`;
                             inner.style.filter = 'none';
                         } else {
-                            const arrowColor = normalizedColor === 'green' ? '#2d9f4d' : '#ffffff';
+                            const arrowColor = normalizedColor === 'green' ? '#38bdf8' : '#ffffff';
                             inner.style.backgroundImage = getArrowSvgDataUri(arrowColor);
-                            inner.style.backgroundColor = normalizedColor === 'green' ? 'rgba(45, 159, 77, 0.18)' : 'transparent';
-                            inner.style.filter = normalizedColor === 'green' ? 'drop-shadow(0 0 6px rgba(45,159,77,0.9))' : (f[normalizedColor] || f.white);
+                            inner.style.backgroundColor = normalizedColor === 'green' ? 'rgba(56, 189, 248, 0.18)' : 'transparent';
+                            inner.style.filter = normalizedColor === 'green' ? 'drop-shadow(0 0 6px rgba(56,189,248,0.9))' : (f[normalizedColor] || f.white);
                         }
                         inner.style.touchAction = 'none';
                         inner.style.cursor = 'pointer';
@@ -2843,15 +3107,13 @@
                     if (response.ok) {
                         const imported = await response.json();
                         if (imported.indicador && Array.isArray(imported.puntosAvance)) {
-                            if (!localStorage.getItem(MINIMAP_INDICATOR_KEY)) {
-                                localStorage.setItem(MINIMAP_INDICATOR_KEY, JSON.stringify(imported.indicador));
-                            }
+                            localStorage.setItem(MINIMAP_INDICATOR_KEY, JSON.stringify(imported.indicador));
                             const savedPoints = JSON.parse(localStorage.getItem(MINIMAP_ADVANCE_KEY) || 'null');
                             const syncedPoints = Array.isArray(savedPoints)
                                 ? savedPoints.map(point => {
                                     const importedPoint = imported.puntosAvance.find(item => item.id && item.id === point.id);
-                                    return importedPoint && importedPoint.panoId !== point.panoId
-                                        ? { ...point, panoId: importedPoint.panoId }
+                                    return importedPoint
+                                        ? { ...point, x: importedPoint.x, y: importedPoint.y, panoId: importedPoint.panoId }
                                         : point;
                                 })
                                 : [];
@@ -2945,12 +3207,13 @@
             const userMarker = document.getElementById('minimap__user');
             if (!nodesWrap || !userMarker) return;
             nodesWrap.innerHTML = '';
-            const activeRoutePanoIds = new Set(routeTargetId ? [
+            const hasActiveRoute = !!routeTargetId && (routeTargetId === currentPano?.id || routePath.length > 0);
+            const activeRoutePanoIds = new Set(hasActiveRoute ? [
                 currentPano?.id,
                 ...routePath.flatMap(step => [step.fromId, step.toId]),
                 routeTargetId
             ].filter(Boolean) : []);
-            const targetRoutePoint = routeTargetId ? getMapPointsForPanoramaId(routeTargetId)[0] : null;
+            const targetRoutePoint = hasActiveRoute ? getMapPointsForPanoramaId(routeTargetId)[0] : null;
             const activeRoutePoints = targetRoutePoint && minimapIndicator
                 ? buildRouteLinePoints(minimapIndicator, targetRoutePoint)
                 : [];
@@ -3002,9 +3265,9 @@
                 const isOnActiveRoute = activeRoutePanoIds.has(point.panoId) || activeRoutePoints.some(routePoint =>
                     Math.abs(routePoint.x - Number(point.x)) < 0.001 && Math.abs(routePoint.y - Number(point.y)) < 0.001
                 );
-                advance.style.background = isOnActiveRoute ? '#22c55e' : '#f59e0b';
+                advance.style.background = isOnActiveRoute ? '#2563eb' : '#f59e0b';
                 advance.style.border = '2px solid #fff';
-                advance.style.boxShadow = isOnActiveRoute ? '0 0 0 3px rgba(34,197,94,0.4)' : '0 0 0 3px rgba(245,158,11,0.35)';
+                advance.style.boxShadow = isOnActiveRoute ? '0 0 0 3px rgba(37,99,235,0.4)' : '0 0 0 3px rgba(245,158,11,0.35)';
                 advance.title = 'Punto de avance para ' + (point.panoId || '?') + (isOnActiveRoute ? ' (ruta activa)' : '');
                 advance.onclick = (event) => {
                     event.stopPropagation();
@@ -3247,7 +3510,7 @@
                 if (itemGrado !== value.toLowerCase()) return false;
                 if (dia && diaNormalizado(itemDia) !== diaNormalizado(dia)) return false;
                 const start = horarioEnMinutos(item.hora_inicio);
-                const end = horarioEnMinutos(item.hora_fin);
+                const end = horarioEnMinutos(getHoraFinEfectivaHorario(item));
                 if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
                 if (String(item.curso || '').trim().toLowerCase() === 'libre') return false;
                 return ahora >= start && ahora < end;
@@ -3270,7 +3533,7 @@
                 if (itemGrado !== gradoBuscado) return false;
                 if (dia && diaNormalizado(itemDia) !== diaNormalizado(dia)) return false;
                 const start = horarioEnMinutos(item.hora_inicio);
-                const end = horarioEnMinutos(item.hora_fin);
+                const end = horarioEnMinutos(getHoraFinEfectivaHorario(item));
                 if (!Number.isFinite(start) || !Number.isFinite(end)) return false;
                 return true;
             });
@@ -3278,7 +3541,7 @@
             if (!horariosDelDia.length) return `No hay jornada programada para el grado ${grado} el ${dia}.`;
 
             const starts = horariosDelDia.map(item => horarioEnMinutos(item.hora_inicio));
-            const ends = horariosDelDia.map(item => horarioEnMinutos(item.hora_fin));
+            const ends = horariosDelDia.map(item => horarioEnMinutos(getHoraFinEfectivaHorario(item)));
             const primeraHora = Math.min(...starts);
             const ultimaHora = Math.max(...ends);
             const formatTime = minutes => `${String(Math.floor(minutes / 60)).padStart(2, '0')}:${String(minutes % 60).padStart(2, '0')}`;
@@ -3306,12 +3569,12 @@
         }
 
         function findBestSalonMatch(salon, grado = '') {
-            const expectedSalon = String(salon || '').trim().toLowerCase();
+            const expectedSalon = normalizarNombreSalon(salon).toLowerCase();
             const expectedGrado = String(grado || '').trim().toLowerCase();
             if (!expectedSalon) return null;
             const entries = getQuickNavEntries();
             const exactMatches = entries.filter(entry => {
-                const entrySalon = String(entry.salon || '').trim().toLowerCase();
+                const entrySalon = normalizarNombreSalon(entry.salon).toLowerCase();
                 if (entrySalon !== expectedSalon) return false;
                 if (expectedGrado && String(entry.grado || '').trim().toLowerCase() && String(entry.grado || '').trim().toLowerCase() !== expectedGrado) {
                     return false;
@@ -3325,7 +3588,7 @@
                     return aGrade - bGrade;
                 })[0];
             }
-            return entries.find(entry => String(entry.salon || '').trim().toLowerCase() === expectedSalon) || null;
+            return entries.find(entry => normalizarNombreSalon(entry.salon).toLowerCase() === expectedSalon) || null;
         }
 
         function getQuickNavEntries() {
@@ -3403,13 +3666,94 @@
                     horaFin: ''
                 });
             });
+
+            (mapGuide.places || []).forEach((place, index) => {
+                const title = String(place?.name || '').trim();
+                if (!title) return;
+                const destination = findNearestPanoramaForMapPoint(place);
+                if (!destination) return;
+                entries.push({
+                    id: `map-guide-place-${index}`,
+                    panoId: destination.id,
+                    sourceImage: destination.id,
+                    type: 'map-place',
+                    profesor: '',
+                    grado: '',
+                    salon: /^sal[oó]n\b/i.test(title) ? title : '',
+                    title,
+                    dia: '',
+                    horaInicio: '',
+                    horaFin: ''
+                });
+            });
             return entries;
+        }
+
+        function findNearestPanoramaForMapPoint(mapPoint) {
+            let nearest = null;
+            let nearestDistance = Number.POSITIVE_INFINITY;
+            panoramas.forEach(panorama => {
+                getMapPointsForPanoramaId(panorama.id).forEach(point => {
+                    const distance = Math.hypot(Number(point.x) - Number(mapPoint.x), Number(point.y) - Number(mapPoint.y));
+                    if (distance < nearestDistance) {
+                        nearest = panorama;
+                        nearestDistance = distance;
+                    }
+                });
+            });
+            return nearest;
+        }
+
+        function normalizarNombreSalon(salon) {
+            const value = String(salon || '').trim();
+            if (/^\d+$/.test(value)) return `Salón ${value}`;
+            return value.replace(/^sal[oó]n\b\s*/i, 'Salón ').trim();
+        }
+
+        function getQuickNavEntryValue(category, entry) {
+            const value = category === 'grado' ? entry.grado : category === 'salon' ? entry.salon : category === 'profesor' ? entry.profesor : entry.title;
+            return category === 'salon' ? normalizarNombreSalon(value) : String(value || '').trim();
+        }
+
+        function compararNombresSalon(a, b) {
+            const numberA = String(a).match(/^sal[oó]n\s+(\d+)\b/i);
+            const numberB = String(b).match(/^sal[oó]n\s+(\d+)\b/i);
+            if (numberA && numberB) {
+                return Number(numberA[1]) - Number(numberB[1]) || a.localeCompare(b, 'es');
+            }
+            if (numberA) return -1;
+            if (numberB) return 1;
+            return a.localeCompare(b, 'es', { sensitivity: 'base' });
+        }
+
+        function normalizarClaveLugar(value) {
+            const key = diaNormalizado(value).replace(/\s+/g, ' ').trim();
+            const aliases = {
+                aseo: 'banos y aseo',
+                banos: 'banos y aseo',
+                'banos y aseo': 'banos y aseo',
+                cordinacion: 'coordinacion',
+                'sala profesores': 'sala de profesores'
+            };
+            return aliases[key] || key;
         }
 
         function populateQuickNavOptions() {
             const category = document.getElementById('quick-nav-category')?.value || 'grado';
             const target = document.getElementById('quick-nav-target');
             if (!target) return;
+            if (category === 'lugar') {
+                target.innerHTML = '<option value="">Selecciona una opción</option>';
+                [...lugaresCatalogo]
+                    .sort((a, b) => a.titulo.localeCompare(b.titulo, 'es'))
+                    .forEach(lugar => {
+                        const option = document.createElement('option');
+                        option.value = lugar.titulo;
+                        option.textContent = lugar.titulo;
+                        target.appendChild(option);
+                    });
+                return;
+            }
             const entries = getQuickNavEntries();
             const values = new Set();
 
@@ -3420,27 +3764,19 @@
                 });
             }
 
-            if (category === 'lugar') {
-                const nombresFijos = [
-                    'Transición',
-                    'Tienda',
-                    'Sala de profesores',
-                    'Restaurante',
-                    'Canchas',
-                    'Coordinación',
-                    'Cafetería',
-                    'Biblioteca',
-                    'Baños y aseo'
-                ];
-                nombresFijos.forEach(value => values.add(value));
-            } else {
-                entries.forEach(entry => {
-                    if (category === 'profesor' && (entry.type === 'database-place' || entry.type === 'simple-alert')) return;
-                    const value = category === 'grado' ? entry.grado : category === 'salon' ? entry.salon : category === 'profesor' ? entry.profesor : entry.title;
-                    if (value && String(value).trim()) values.add(String(value).trim());
+            if (category === 'salon') {
+                horariosColegio.forEach(horario => {
+                    const salon = String(horario.salon || '').trim();
+                    if (salon && salon !== '-') values.add(normalizarNombreSalon(salon));
                 });
             }
-            const list = [...values].sort((a, b) => a.localeCompare(b, 'es'));
+            entries.forEach(entry => {
+                if (category === 'profesor' && (entry.type === 'database-place' || entry.type === 'simple-alert')) return;
+                const value = getQuickNavEntryValue(category, entry);
+                if (value) values.add(value);
+            });
+            const compare = category === 'salon' ? compararNombresSalon : (a, b) => a.localeCompare(b, 'es');
+            const list = [...values].sort(compare);
             target.innerHTML = '<option value="">Selecciona una opción</option>';
             list.forEach(value => {
                 const option = document.createElement('option');
@@ -3451,6 +3787,7 @@
         }
 
         function buscarUbicacionEnMenuVista() {
+            clearActiveRoute();
             const category = document.getElementById('quick-nav-category')?.value || 'grado';
             const target = document.getElementById('quick-nav-target');
             const status = document.getElementById('quick-nav-status');
@@ -3503,8 +3840,8 @@
 
             const matches = getQuickNavEntries().filter(entry => {
                 if (category === 'profesor' && (entry.type === 'database-place' || entry.type === 'simple-alert')) return false;
-                const value = category === 'grado' ? entry.grado : category === 'salon' ? entry.salon : category === 'profesor' ? entry.profesor : entry.title;
-                if (!value || String(value).trim().toLowerCase() !== String(selectedValue).trim().toLowerCase()) return false;
+                const value = getQuickNavEntryValue(category, entry);
+                if (!value || value.toLowerCase() !== String(selectedValue).trim().toLowerCase()) return false;
                 if (!entry.dia && !entry.horaInicio && !entry.horaFin) return true;
                 if (!selectedDay && selectedMinutes === null) return true;
                 const entryDay = String(entry.dia || '').trim();
@@ -3521,8 +3858,8 @@
 
             const match = matches[0] || getQuickNavEntries().find(entry => {
                 if (category === 'profesor' && (entry.type === 'database-place' || entry.type === 'simple-alert')) return false;
-                const value = category === 'grado' ? entry.grado : category === 'salon' ? entry.salon : category === 'profesor' ? entry.profesor : entry.title;
-                return value && String(value).trim().toLowerCase() === String(selectedValue).trim().toLowerCase();
+                const value = getQuickNavEntryValue(category, entry);
+                return value && value.toLowerCase() === String(selectedValue).trim().toLowerCase();
             });
 
             if (!match) {
@@ -3546,6 +3883,7 @@
         }
 
         function rutaDesdeMenuVista() {
+            clearActiveRoute();
             const category = document.getElementById('quick-nav-category')?.value || 'grado';
             const target = document.getElementById('quick-nav-target');
             const status = document.getElementById('quick-nav-status');
@@ -3600,8 +3938,8 @@
 
             const matches = getQuickNavEntries().filter(entry => {
                 if (category === 'profesor' && (entry.type === 'database-place' || entry.type === 'simple-alert')) return false;
-                const value = category === 'grado' ? entry.grado : category === 'salon' ? entry.salon : category === 'profesor' ? entry.profesor : entry.title;
-                if (!value || String(value).trim().toLowerCase() !== String(selectedValue).trim().toLowerCase()) return false;
+                const value = getQuickNavEntryValue(category, entry);
+                if (!value || value.toLowerCase() !== String(selectedValue).trim().toLowerCase()) return false;
                 if (!entry.dia && !entry.horaInicio && !entry.horaFin) return true;
                 const entryDay = String(entry.dia || '').trim();
                 const start = getMinutesFromTime(entry.horaInicio || '');
@@ -3616,8 +3954,8 @@
 
             const match = matches[0] || getQuickNavEntries().find(entry => {
                 if (category === 'profesor' && (entry.type === 'database-place' || entry.type === 'simple-alert')) return false;
-                const value = category === 'grado' ? entry.grado : category === 'salon' ? entry.salon : category === 'profesor' ? entry.profesor : entry.title;
-                return value && String(value).trim().toLowerCase() === String(selectedValue).trim().toLowerCase();
+                const value = getQuickNavEntryValue(category, entry);
+                return value && value.toLowerCase() === String(selectedValue).trim().toLowerCase();
             });
 
             if (!match) {
@@ -3661,8 +3999,12 @@
             const category = document.getElementById('quick-nav-category');
             if (category) {
                 category.onchange = () => {
-                    if (category.value === 'lugar' && !lugaresBaseDeDatos.length) {
-                        cargarLugaresDesdeBaseDeDatos().then(populateQuickNavOptions);
+                    clearActiveRoute();
+                    if (category.value === 'lugar') {
+                        const pendingLoads = [];
+                        if (!lugaresCatalogo.length) pendingLoads.push(cargarCatalogoLugares());
+                        if (!lugaresBaseDeDatos.length) pendingLoads.push(cargarLugaresDesdeBaseDeDatos());
+                        Promise.all(pendingLoads).then(populateQuickNavOptions);
                     }
                     populateQuickNavOptions();
                 };
@@ -3670,9 +4012,9 @@
             populateQuickNavOptions();
             const target = document.getElementById('quick-nav-target');
             if (target) target.onchange = () => {
+                clearActiveRoute();
                 const status = document.getElementById('quick-nav-status');
                 if (status) status.textContent = '';
-                if (target.value) rutaDesdeMenuVista();
             };
             const goBtn = document.getElementById('btn-go-to-location');
             if (goBtn) goBtn.onclick = buscarUbicacionEnMenuVista;
@@ -3855,11 +4197,23 @@
 
         function mapPointFromEvent(event) {
             const layer = document.getElementById('mapa-google-layer');
-            const rect = layer.getBoundingClientRect();
-            const surface = document.getElementById('mapa-google-surface');
-            const surfaceRect = surface ? surface.getBoundingClientRect() : rect;
-            let x = Math.max(0, Math.min(100, ((event.clientX - surfaceRect.left) / surfaceRect.width) * 100));
-            let y = Math.max(0, Math.min(100, ((event.clientY - surfaceRect.top) / surfaceRect.height) * 100));
+            const matrix = layer.getScreenCTM();
+            let x;
+            let y;
+            if (matrix) {
+                const point = layer.createSVGPoint();
+                point.x = event.clientX;
+                point.y = event.clientY;
+                const localPoint = point.matrixTransform(matrix.inverse());
+                x = localPoint.x;
+                y = localPoint.y;
+            } else {
+                const rect = layer.getBoundingClientRect();
+                x = ((event.clientX - rect.left) / rect.width) * 100;
+                y = ((event.clientY - rect.top) / rect.height) * 100;
+            }
+            x = Math.max(0, Math.min(100, x));
+            y = Math.max(0, Math.min(100, y));
             if (document.getElementById('map-snap-grid')?.checked) { x = Math.round(x / 5) * 5; y = Math.round(y / 5) * 5; }
             return { x, y };
         }
@@ -3897,9 +4251,13 @@
 
             if (pointGroups.length > 1) {
                 const routePoints = [pointGroups[0][0]];
-                pointGroups.slice(1).forEach(group => {
+                pointGroups.slice(1).forEach((group, index) => {
                     const previousPoint = routePoints[routePoints.length - 1];
-                    const nearestPoint = group.reduce((nearest, point) =>
+                    const isTargetGroup = index === pointGroups.length - 2;
+                    const mappedTarget = isTargetGroup ? group.find(point =>
+                        Math.abs(point.x - Number(targetPoint.x)) < 0.001 && Math.abs(point.y - Number(targetPoint.y)) < 0.001
+                    ) : null;
+                    const nearestPoint = mappedTarget || group.reduce((nearest, point) =>
                         Math.hypot(point.x - previousPoint.x, point.y - previousPoint.y) <
                         Math.hypot(nearest.x - previousPoint.x, nearest.y - previousPoint.y) ? point : nearest
                     );
@@ -3908,16 +4266,7 @@
                 const cleaned = routePoints.filter((point, index) => index === 0 ||
                     Math.abs(point.x - routePoints[index - 1].x) > 0.001 || Math.abs(point.y - routePoints[index - 1].y) > 0.001
                 );
-                if (cleaned.length > 1) {
-                    const connected = [cleaned[0]];
-                    cleaned.slice(1).forEach(point => {
-                        const previous = connected[connected.length - 1];
-                        const gap = Math.hypot(point.x - previous.x, point.y - previous.y);
-                        const segment = gap > 12 ? buildGraphRoutePoints(previous, point) : [previous, point];
-                        segment.slice(1).forEach(segmentPoint => connected.push(segmentPoint));
-                    });
-                    return connected;
-                }
+                if (cleaned.length > 1) return cleaned;
             }
 
             return buildGraphRoutePoints(startPoint, targetPoint);
@@ -4036,10 +4385,14 @@
                 const label = svgElement('text', { x: zone.x, y: zone.y, 'text-anchor': 'middle', 'font-size': 3.2, fill: '#7f1d1d', 'font-weight': 'bold' }); label.textContent = zone.name; content.appendChild(label);
             });
             if (mapGuide.layers.places) mapGuide.places.forEach(place => {
-                const w = place.w || 7, h = place.h || 7;
-                const shape = place.shape === 'rect' ? svgElement('rect', { x: place.x - w/2, y: place.y - h/2, width: w, height: h, fill: place.color || (place.type === 'Aula' ? '#2563c7' : '#f59e0b'), stroke: '#fff', 'stroke-width': .7 }) : place.shape === 'semicircle' ? svgElement('path', { d: `M ${place.x-w/2} ${place.y+h/2} A ${w/2} ${h/2} 0 0 1 ${place.x+w/2} ${place.y+h/2} L ${place.x-w/2} ${place.y+h/2} Z`, fill: place.color || (place.type === 'Aula' ? '#2563c7' : '#f59e0b'), stroke: '#fff', 'stroke-width': .7 }) : place.shape === 'diamond' ? svgElement('polygon', { points: `${place.x},${place.y-h/2} ${place.x+w/2},${place.y} ${place.x},${place.y+h/2} ${place.x-w/2},${place.y}`, fill: place.color || (place.type === 'Aula' ? '#2563c7' : '#f59e0b'), stroke: '#fff', 'stroke-width': .7 }) : svgElement('circle', { cx: place.x, cy: place.y, r: Math.min(w, h)/2, fill: place.color || (place.type === 'Aula' ? '#2563c7' : '#f59e0b'), stroke: '#fff', 'stroke-width': .7 });
+                const isDatabasePlace = place.source === 'catalogo';
+                const w = Number(place.w) || (isDatabasePlace ? 1.5 : 7), h = Number(place.h) || (isDatabasePlace ? 1.5 : 7);
+                const placeColor = place.color || (place.type === 'Aula' ? '#2563c7' : '#f59e0b');
+                const shape = place.shape === 'rect' ? svgElement('rect', { x: place.x - w/2, y: place.y - h/2, width: w, height: h, fill: placeColor, stroke: '#fff', 'stroke-width': isDatabasePlace ? .25 : .7 }) : place.shape === 'semicircle' ? svgElement('path', { d: `M ${place.x-w/2} ${place.y+h/2} A ${w/2} ${h/2} 0 0 1 ${place.x+w/2} ${place.y+h/2} L ${place.x-w/2} ${place.y+h/2} Z`, fill: placeColor, stroke: '#fff', 'stroke-width': isDatabasePlace ? .25 : .7 }) : place.shape === 'diamond' ? svgElement('polygon', { points: `${place.x},${place.y-h/2} ${place.x+w/2},${place.y} ${place.x},${place.y+h/2} ${place.x-w/2},${place.y}`, fill: placeColor, stroke: '#fff', 'stroke-width': isDatabasePlace ? .25 : .7 }) : svgElement('circle', { cx: place.x, cy: place.y, r: Math.min(w, h)/2, fill: placeColor, stroke: '#fff', 'stroke-width': isDatabasePlace ? .25 : .7 });
                 shape.addEventListener('click', event => { event.stopPropagation(); selectMapElement({ kind: 'place', item: place }); }); content.appendChild(shape);
-                const label = svgElement('text', { x: place.x, y: place.y - h/2 - 1, 'text-anchor': 'middle', 'font-size': 3.2, fill: '#111827', 'font-weight': 'bold' }); label.textContent = place.name; content.appendChild(label);
+                if (!isDatabasePlace) {
+                    const label = svgElement('text', { x: place.x, y: place.y - h/2 - 1, 'text-anchor': 'middle', 'font-size': 3.2, fill: '#111827', 'font-weight': 'bold' }); label.textContent = place.name; content.appendChild(label);
+                }
             });
             Object.entries(mapGuide.panoramaPositions || {}).forEach(([id, position]) => {
                 const panorama = panoramas.find(item => item.id === id);
@@ -4059,7 +4412,7 @@
             });
 
             const targetId = routeTargetId;
-            if (!targetId || !minimapIndicator) return;
+            if (!targetId || !minimapIndicator || (currentPano?.id !== targetId && !routePath.length)) return;
 
             const targetPoint = getMapPointsForPanoramaId(targetId)[0] || null;
 
@@ -4070,12 +4423,12 @@
                 const routeLine = svgElement('polyline', {
                     points: routePoints.map(point => `${point.x},${point.y}`).join(' '),
                     fill: 'none',
-                    stroke: '#22c55e',
+                    stroke: '#38bdf8',
                     'stroke-width': 1,
                     'stroke-linecap': 'round',
                     'stroke-linejoin': 'round',
                     'stroke-opacity': '.9',
-                    'filter': 'drop-shadow(0 0 1px rgba(34,197,94,0.55))'
+                    'filter': 'drop-shadow(0 0 1px rgba(56,189,248,0.75))'
                 });
                 content.appendChild(routeLine);
             }
@@ -4087,12 +4440,47 @@
 
         function loadMapGuide() {
             try { const saved = JSON.parse(localStorage.getItem(MAP_GUIDE_KEY) || 'null'); if (saved) mapGuide = { ...mapGuide, ...saved, layers: { ...mapGuide.layers, ...(saved.layers || {}) } }; } catch (error) { console.warn('No se pudo cargar el mapa guía', error); }
+            let resizedDatabasePlace = false;
+            (Array.isArray(mapGuide.places) ? mapGuide.places : []).forEach(place => {
+                if (place.source !== 'catalogo' || Number(place.displaySizeVersion) >= 2) return;
+                place.w = 1.5;
+                place.h = 1.5;
+                delete place.labelSize;
+                place.displaySizeVersion = 2;
+                resizedDatabasePlace = true;
+            });
+            if (resizedDatabasePlace) saveMapGuide();
             renderMapGuide();
+        }
+
+        async function loadMapPlaceCatalog() {
+            const select = document.getElementById('map-database-place-select');
+            if (!select) return;
+            const previousValue = select.value;
+            try {
+                const response = await fetch('api.php?action=catalogo_lugares', { cache: 'no-store' });
+                const payload = await response.json();
+                if (!response.ok || !payload?.ok) throw new Error(payload?.error || 'No se pudieron cargar los lugares.');
+                mapPlaceCatalog = Array.isArray(payload.items) ? payload.items : [];
+                select.innerHTML = '<option value="">Selecciona un lugar</option>';
+                mapPlaceCatalog.forEach(place => {
+                    const option = document.createElement('option');
+                    option.value = String(place.id_lugar);
+                    option.textContent = String(place.titulo || '').trim();
+                    select.appendChild(option);
+                });
+                if (mapPlaceCatalog.some(place => String(place.id_lugar) === previousValue)) select.value = previousValue;
+                if (!mapPlaceCatalog.length) select.innerHTML = '<option value="">No hay lugares en la base</option>';
+            } catch (error) {
+                mapPlaceCatalog = [];
+                select.innerHTML = '<option value="">No se pudieron cargar los lugares</option>';
+                console.warn('No se pudo cargar el catálogo para el punto lugar', error);
+            }
         }
 
         function setMapTool(tool) {
             activeMapTool = activeMapTool === tool ? null : tool;
-            document.querySelectorAll('#map-tool-path, #map-tool-place, #map-tool-zone').forEach(button => button.classList.remove('active'));
+            document.querySelectorAll('#map-tool-path, #map-tool-place, #map-tool-zone, #map-tool-database-place').forEach(button => button.classList.remove('active'));
             if (activeMapTool) document.getElementById(`map-tool-${activeMapTool}`).classList.add('active');
             if (activeMapTool !== 'path' && draftPath.length) finishMapPath();
         }
@@ -4119,6 +4507,38 @@
             }
             if (!isEdit || !activeMapTool) return;
             const point = mapPointFromEvent(event);
+            if (activeMapTool === 'database-place') {
+                if (!selectedMapDatabasePlace) {
+                    setMapTool('database-place');
+                    return;
+                }
+                mapGuide.places = Array.isArray(mapGuide.places) ? mapGuide.places : [];
+                const place = {
+                    id: `database-place-${selectedMapDatabasePlace.id_lugar}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+                    id_lugar: Number(selectedMapDatabasePlace.id_lugar),
+                    source: 'catalogo',
+                    name: String(selectedMapDatabasePlace.titulo || '').trim(),
+                    type: 'Lugar',
+                    shape: 'circle',
+                    color: '#38bdf8',
+                    w: 1.5,
+                    h: 1.5,
+                    x: point.x,
+                    y: point.y,
+                    displaySizeVersion: 2
+                };
+                mapGuide.places.push(place);
+                mapGuide.layers.places = true;
+                const placesLayer = document.getElementById('layer-places');
+                if (placesLayer) placesLayer.checked = true;
+                saveMapGuide();
+                selectedMapElement = { kind: 'place', item: place };
+                renderMapGuide();
+                renderMinimapElementsList();
+                setMapTool('database-place');
+                selectedMapDatabasePlace = null;
+                return;
+            }
             if (activeMapTool === 'path') { if (event.shiftKey && draftPath.length) { const previous = draftPath[draftPath.length - 1]; if (Math.abs(point.x - previous.x) >= Math.abs(point.y - previous.y)) point.y = previous.y; else point.x = previous.x; } draftPath.push(point); renderMapGuide(); return; }
             if (activeMapTool === 'place') { const name = prompt('Nombre del aula o lugar:'); if (name) { const type = prompt('Escribe Aula o Lugar:', 'Aula') || 'Lugar';                 const shapeName = (prompt('Forma: círculo, semicírculo, rectángulo o rombo:', 'círculo') || 'círculo').toLowerCase(); const shape = shapeName.includes('semi') ? 'semicircle' : shapeName.includes('rect') ? 'rect' : shapeName.includes('rombo') ? 'diamond' : 'circle'; mapGuide.places.push({ name: name.trim(), type: /^aula$/i.test(type) ? 'Aula' : 'Lugar', shape, w: 7, h: 7, x: point.x, y: point.y });
  renderMapGuide(); saveMapGuide(); } }
@@ -4129,6 +4549,15 @@
         document.getElementById('map-tool-path').onclick = () => setMapTool('path');
         document.getElementById('map-tool-place').onclick = () => setMapTool('place');
         document.getElementById('map-tool-zone').onclick = () => setMapTool('zone');
+        document.getElementById('map-tool-database-place').onclick = () => {
+            const placeId = Number(document.getElementById('map-database-place-select')?.value);
+            selectedMapDatabasePlace = mapPlaceCatalog.find(place => Number(place.id_lugar) === placeId) || null;
+            if (!selectedMapDatabasePlace) {
+                alert('Selecciona primero un lugar de la base de datos.');
+                return;
+            }
+            setMapTool('database-place');
+        };
         document.getElementById('map-finish-path').onclick = finishMapPath;
         document.getElementById('map-clear-guide').onclick = () => { if (confirm('¿Deseas borrar todos los caminos, lugares y áreas del mapa?')) { mapGuide.paths = []; mapGuide.places = []; mapGuide.zones = []; draftPath = []; renderMapGuide(); saveMapGuide(); } };
         
@@ -4235,6 +4664,7 @@
         document.getElementById('mapa-google-layer').addEventListener('dblclick', event => { event.preventDefault(); if (activeMapTool === 'path') finishMapPath(); });
         ['paths', 'places', 'zones'].forEach(layer => document.getElementById(`layer-${layer}`).addEventListener('change', event => { mapGuide.layers[layer] = event.target.checked; renderMapGuide(); saveMapGuide(); }));
         document.getElementById('map-grid-visible').addEventListener('change', renderMapGuide);
+        document.getElementById('map-snap-grid').checked = false;
         document.getElementById('map-snap-grid').addEventListener('change', renderMapGuide);
 
         function applyMapSettings() {
@@ -4248,7 +4678,7 @@
             if (wrapper && !wrapper.closest('#map-guide-modal')) { wrapper.style.width = `${mapSettings.width}px`; wrapper.style.left = `${mapSettings.left}px`; wrapper.style.bottom = `${mapSettings.bottom}px`; } else if (wrapper) { wrapper.style.width = '100%'; wrapper.style.left = 'auto'; wrapper.style.bottom = 'auto'; }
             if (surface && !wrapper?.closest('#map-guide-modal')) { surface.style.width = `${mapSettings.zoom}%`; surface.style.height = `${mapSettings.zoom}%`; }
             mapa.style.opacity = String(mapSettings.opacity / 100);
-            mapa.style.filter = `grayscale(${mapSettings.grayscale}%)`;
+            mapa.style.filter = `grayscale(${mapSettings.grayscale}%) contrast(1.18)`;
             const controls = [
                 ['map-width', 'map-width-value', mapSettings.width, 'px'],
                 ['map-opacity', 'map-opacity-value', mapSettings.opacity, '%'],
@@ -4274,6 +4704,11 @@
             try {
                 const saved = JSON.parse(localStorage.getItem(MAP_SETTINGS_KEY) || 'null');
                 if (saved && typeof saved === 'object') mapSettings = { ...DEFAULT_MAP_SETTINGS, ...saved };
+                if (localStorage.getItem(MAP_COLOR_MIGRATION_KEY) !== 'done') {
+                    mapSettings.grayscale = 0;
+                    localStorage.setItem(MAP_SETTINGS_KEY, JSON.stringify(mapSettings));
+                    localStorage.setItem(MAP_COLOR_MIGRATION_KEY, 'done');
+                }
             } catch (error) {
                 console.warn('No se pudieron cargar los ajustes del mapa', error);
             }
@@ -4365,6 +4800,7 @@
             const stage = document.getElementById('map-guide-modal-stage');
             if (wrapper && stage && !mapOriginalParent) { mapOriginalParent = wrapper.parentElement; stage.appendChild(wrapper); }
             modal.classList.add('open');
+            loadMapPlaceCatalog();
             updateMapPanelState(true);
             applyMapSettings();
             renderMinimapElementsList();
@@ -4549,6 +4985,7 @@
             event.preventDefault();
             navigateWithKeyboard(rawDirection);
         });
+        document.getElementById('btn-show-route').textContent = 'Mostrar ruta azul';
         document.getElementById('btn-show-route').onclick = showRoute;
         document.getElementById('route-destination').onkeydown = (e) => { if (e.key === 'Enter') showRoute(); };
         document.getElementById('btn-place-indicator').onclick = () => setMiniMapPlacementMode('indicator');
@@ -4744,9 +5181,13 @@
             }
         });
         document.querySelectorAll('.weekly-calendar-day').forEach(button => {
-            button.addEventListener('click', () => setWeeklyCalendar(button.dataset.day, document.getElementById('weekly-calendar-time').value));
+            button.addEventListener('click', () => {
+                clearActiveRoute();
+                setWeeklyCalendar(button.dataset.day, document.getElementById('weekly-calendar-time').value);
+            });
         });
         document.getElementById('weekly-calendar-time').addEventListener('change', (event) => {
+            clearActiveRoute();
             setWeeklyCalendar(calendarioDia, event.target.value);
         });
         setCurrentCalendarDefaults();
@@ -4784,6 +5225,12 @@
             }
             currentPano.labels = currentPano.labels || [];
             currentPano.alerts = currentPano.alerts || [];
+            if (window.matchMedia('(max-width: 700px), (max-height: 500px) and (orientation: landscape)').matches) {
+                isEdit = false;
+                document.body.classList.replace('edit-mode', 'view-mode');
+                document.getElementById('btn-mode-view').classList.add('active');
+                document.getElementById('btn-mode-edit').classList.remove('active');
+            }
             updateSaveStatus('Guardado local', false);
             setupLeafletMiniMap();
             init(null, currentPano.path === DEFAULT_START_IMAGE_PATH ? 'forward' : null);
@@ -4795,6 +5242,5 @@
         });
     </script>
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-    <script src="integracion-formulario.js"></script>
 </body>
 </html>

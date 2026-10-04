@@ -10407,36 +10407,6 @@
                 "hora": "",
                 "horaInicio": "",
                 "horaFin": ""
-            },
-            {
-                "pitch": 16.208349800221676,
-                "yaw": -45.1742484802261,
-                "type": "exclamation",
-                "targetId": "foto-0001",
-                "sourceImage": "foto-0169",
-                "direction": "forward",
-                "color": "#ffffff",
-                "w": 70,
-                "h": 70,
-                "rotate": 0,
-                "tilt": 0,
-                "idHorario": "",
-                "profesor": "Aseo",
-                "curso": "",
-                "grado": "",
-                "salon": "",
-                "dia": "",
-                "hora": "",
-                "horaInicio": "",
-                "horaFin": "",
-                "title": "Aseo",
-                "alertMode": "simple",
-                "titulo": "",
-                "descripcion": "",
-                "description": "Aseo",
-                "fontSize": 12,
-                "markerSize": 70,
-                "idLugar": 5
             }
         ],
         "initialYaw": 0,
@@ -11067,35 +11037,6 @@
                 "idHorario": "",
                 "horaInicio": "",
                 "horaFin": ""
-            },
-            {
-                "pitch": 33.10440983519605,
-                "yaw": 178.98928570505154,
-                "type": "exclamation",
-                "targetId": "foto-0001",
-                "sourceImage": "foto-0178",
-                "direction": "forward",
-                "color": "#ffffff",
-                "w": 70,
-                "h": 70,
-                "rotate": 0,
-                "tilt": 0,
-                "idHorario": "",
-                "profesor": "entrada_principal",
-                "curso": "",
-                "grado": "",
-                "salon": "",
-                "dia": "",
-                "hora": "",
-                "horaInicio": "",
-                "horaFin": "",
-                "title": "entrada_principal",
-                "alertMode": "simple",
-                "titulo": "",
-                "descripcion": "",
-                "description": "entrada_principal",
-                "fontSize": 12,
-                "markerSize": 70
             }
         ],
         "initialYaw": 0,
@@ -12993,9 +12934,7 @@
         "leftYaw": 0,
         "leftPitch": 0,
         "rightYaw": 0,
-        "rightPitch": 0,
-        "labels": [],
-        "alerts": []
+        "rightPitch": 0
     },
     {
         "id": "foto-catalogo-0179",
@@ -13011,9 +12950,7 @@
         "leftYaw": 0,
         "leftPitch": 0,
         "rightYaw": 0,
-        "rightPitch": 0,
-        "labels": [],
-        "alerts": []
+        "rightPitch": 0
     },
     {
         "id": "foto-catalogo-0183",
@@ -13029,9 +12966,7 @@
         "leftYaw": 0,
         "leftPitch": 0,
         "rightYaw": 0,
-        "rightPitch": 0,
-        "labels": [],
-        "alerts": []
+        "rightPitch": 0
     },
     {
         "id": "foto-catalogo-0184",
@@ -13047,9 +12982,7 @@
         "leftYaw": 0,
         "leftPitch": 0,
         "rightYaw": 0,
-        "rightPitch": 0,
-        "labels": [],
-        "alerts": []
+        "rightPitch": 0
     },
     {
         "id": "foto-catalogo-0185",
@@ -13065,32 +12998,12 @@
         "leftYaw": 0,
         "leftPitch": 0,
         "rightYaw": 0,
-        "rightPitch": 0,
-        "labels": [],
-        "alerts": []
+        "rightPitch": 0
     },
     {
         "id": "foto-catalogo-0202",
         "title": " / Plano urbano minimalista con edificios oscuros",
         "path": "imagenes_del_colegio/Plano urbano minimalista con edificios oscuros.png",
-        "hotspots": [],
-        "initialYaw": 0,
-        "initialPitch": 0,
-        "forwardYaw": 0,
-        "forwardPitch": 0,
-        "backwardYaw": 0,
-        "backwardPitch": 0,
-        "leftYaw": 0,
-        "leftPitch": 0,
-        "rightYaw": 0,
-        "rightPitch": 0,
-        "labels": [],
-        "alerts": []
-    },
-    {
-        "id": "foto-catalogo-0186",
-        "title": " / mapa_google_casi_original",
-        "path": "imagenes_del_colegio/mapa_google_casi_original.jpeg",
         "hotspots": [],
         "initialYaw": 0,
         "initialPitch": 0,

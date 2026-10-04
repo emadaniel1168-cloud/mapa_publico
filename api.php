@@ -37,6 +37,40 @@ try {
         jsonResponse(['ok' => true, 'items' => $items]);
     }
 
+    if ($action === 'guardar_panoramas') {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            jsonResponse(['ok' => false, 'error' => 'Método no permitido'], 405);
+        }
+
+        $panoramas = requestJson();
+        if ($panoramas === [] || array_keys($panoramas) !== range(0, count($panoramas) - 1)) {
+            jsonResponse(['ok' => false, 'error' => 'La lista de panoramas está vacía o no es válida'], 422);
+        }
+
+        $dataPath = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'colegio_santander.json';
+        $json = json_encode($panoramas, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            jsonResponse(['ok' => false, 'error' => 'No se pudieron codificar los datos'], 500);
+        }
+
+        if (is_file($dataPath)) {
+            $backupPath = dirname($dataPath) . DIRECTORY_SEPARATOR . 'colegio_santander.backup.' . date('YmdHis') . '.json';
+            if (!copy($dataPath, $backupPath)) {
+                jsonResponse(['ok' => false, 'error' => 'No se pudo crear la copia de seguridad'], 500);
+            }
+        }
+
+        $tempPath = $dataPath . '.tmp';
+        if (file_put_contents($tempPath, $json, LOCK_EX) === false || !rename($tempPath, $dataPath)) {
+            if (is_file($tempPath)) {
+                unlink($tempPath);
+            }
+            jsonResponse(['ok' => false, 'error' => 'No se pudo escribir el archivo de panoramas'], 500);
+        }
+
+        jsonResponse(['ok' => true, 'message' => 'Panoramas guardados correctamente']);
+    }
+
     $pdo = db();
 
     switch ($action) {
@@ -79,8 +113,9 @@ try {
                     h.materia,
                     h.id_profesor,
                     h.salon,
+                    h.hora_fin_sena,
                     b.hora_inicio,
-                    b.hora_fin
+                    COALESCE(h.hora_fin_sena, b.hora_fin) AS hora_fin
                  FROM horarios h
                  INNER JOIN grados g ON g.id_grado = h.id_grado
                  INNER JOIN bloques_horarios b
@@ -114,6 +149,13 @@ try {
         case 'grados':
             $stmt = $pdo->query(
                 'SELECT id_grado, jornada FROM grados ORDER BY id_grado'
+            );
+            jsonResponse(['ok' => true, 'items' => $stmt->fetchAll()]);
+            break;
+
+        case 'catalogo_lugares':
+            $stmt = $pdo->query(
+                'SELECT id AS id_lugar, nombre AS titulo FROM lugares ORDER BY nombre'
             );
             jsonResponse(['ok' => true, 'items' => $stmt->fetchAll()]);
             break;
@@ -174,6 +216,25 @@ try {
             $pitch = (float)($data['pitch'] ?? 0);
             $yaw = (float)($data['yaw'] ?? 0);
 
+            if ($idHorario === null) {
+                $find = $pdo->prepare(
+                    'SELECT id FROM lugares WHERE LOWER(TRIM(nombre)) = LOWER(TRIM(:nombre)) LIMIT 1'
+                );
+                $find->execute(['nombre' => $titulo]);
+                $idLugar = $find->fetchColumn();
+                if ($idLugar === false) {
+                    $insert = $pdo->prepare('INSERT INTO lugares (nombre) VALUES (:nombre)');
+                    $insert->execute(['nombre' => $titulo]);
+                    $idLugar = (int)$pdo->lastInsertId();
+                }
+
+                jsonResponse([
+                    'ok' => true,
+                    'id_lugar' => (int)$idLugar,
+                    'message' => 'Lugar agregado al catálogo'
+                ], 201);
+            }
+
             if ($pitch < -90 || $pitch > 90 || $yaw < -360 || $yaw > 360) {
                 jsonResponse(['ok' => false, 'error' => 'Coordenadas del hotspot inválidas'], 422);
             }
@@ -219,7 +280,7 @@ try {
             jsonResponse([
                 'ok' => false,
                 'error' => 'Acción no válida',
-                'actions' => ['profesores', 'horarios', 'grados', 'lugares', 'guardar_lugar']
+                'actions' => ['profesores', 'horarios', 'grados', 'catalogo_lugares', 'lugares', 'guardar_lugar']
             ], 404);
     }
 } catch (PDOException $e) {
