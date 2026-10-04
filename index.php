@@ -857,7 +857,7 @@
         const MINIMAP_ADVANCE_KEY = 'mapa360.minimap.advance.v1';
         const MINIMAP_LOCATIONS_FILE = 'data/ubicaciones_puntos_mapa.json';
         const MINIMAP_LOCATIONS_VERSION_KEY = 'mapa360.minimap.locations-import.v1';
-        const MINIMAP_LOCATIONS_VERSION = '2026-10-04-puntos-lugar-v2';
+        const MINIMAP_LOCATIONS_VERSION = '2026-10-04-puntos-lugar-v3';
         const SAVE_DELAY_MS = 500;
         const MAP_SETTINGS_KEY = 'mapa360.google-map.settings.v1';
         const MAP_COLOR_MIGRATION_KEY = 'mapa360.google-map.color-migration.v1';
@@ -3113,10 +3113,10 @@
         }
 
         function migrateDatabasePlaceSize(place) {
-            if (place.source !== 'catalogo' || Number(place.displaySizeVersion) >= 3) return false;
-            place.w = 4.5;
-            place.h = 4.5;
-            place.displaySizeVersion = 3;
+            if (place.source !== 'catalogo' || Number(place.displaySizeVersion) >= 4) return false;
+            place.w = 2.5;
+            place.h = 2.5;
+            place.displaySizeVersion = 4;
             return true;
         }
 
@@ -4469,9 +4469,9 @@
             });
             if (mapGuide.layers.places) mapGuide.places.forEach(place => {
                 const isDatabasePlace = place.source === 'catalogo';
-                const w = Number(place.w) || (isDatabasePlace ? 1.5 : 7), h = Number(place.h) || (isDatabasePlace ? 1.5 : 7);
+                const w = Number(place.w) || (isDatabasePlace ? 2.5 : 7), h = Number(place.h) || (isDatabasePlace ? 2.5 : 7);
                 const placeColor = place.color || (place.type === 'Aula' ? '#2563c7' : '#f59e0b');
-                const shape = place.shape === 'rect' ? svgElement('rect', { x: place.x - w/2, y: place.y - h/2, width: w, height: h, fill: placeColor, stroke: '#fff', 'stroke-width': isDatabasePlace ? .25 : .7 }) : place.shape === 'semicircle' ? svgElement('path', { d: `M ${place.x-w/2} ${place.y+h/2} A ${w/2} ${h/2} 0 0 1 ${place.x+w/2} ${place.y+h/2} L ${place.x-w/2} ${place.y+h/2} Z`, fill: placeColor, stroke: '#fff', 'stroke-width': isDatabasePlace ? .25 : .7 }) : place.shape === 'diamond' ? svgElement('polygon', { points: `${place.x},${place.y-h/2} ${place.x+w/2},${place.y} ${place.x},${place.y+h/2} ${place.x-w/2},${place.y}`, fill: placeColor, stroke: '#fff', 'stroke-width': isDatabasePlace ? .25 : .7 }) : svgElement('circle', { cx: place.x, cy: place.y, r: Math.min(w, h)/2, fill: placeColor, stroke: '#fff', 'stroke-width': isDatabasePlace ? .25 : .7 });
+                const shape = place.shape === 'rect' ? svgElement('rect', { x: place.x - w/2, y: place.y - h/2, width: w, height: h, fill: placeColor, stroke: '#fff', 'stroke-width': isDatabasePlace ? .35 : .7 }) : place.shape === 'semicircle' ? svgElement('path', { d: `M ${place.x-w/2} ${place.y+h/2} A ${w/2} ${h/2} 0 0 1 ${place.x+w/2} ${place.y+h/2} L ${place.x-w/2} ${place.y+h/2} Z`, fill: placeColor, stroke: '#fff', 'stroke-width': isDatabasePlace ? .35 : .7 }) : place.shape === 'diamond' ? svgElement('polygon', { points: `${place.x},${place.y-h/2} ${place.x+w/2},${place.y} ${place.x},${place.y+h/2} ${place.x-w/2},${place.y}`, fill: placeColor, stroke: '#fff', 'stroke-width': isDatabasePlace ? .35 : .7 }) : svgElement('circle', { cx: place.x, cy: place.y, r: Math.min(w, h)/2, fill: placeColor, stroke: '#fff', 'stroke-width': isDatabasePlace ? .35 : .7 });
                 shape.addEventListener('click', event => { event.stopPropagation(); selectMapElement({ kind: 'place', item: place }); }); content.appendChild(shape);
                 if (!isDatabasePlace) {
                     const label = svgElement('text', { x: place.x, y: place.y - h/2 - 1, 'text-anchor': 'middle', 'font-size': 3.2, fill: '#111827', 'font-weight': 'bold' }); label.textContent = place.name; content.appendChild(label);
@@ -4605,11 +4605,11 @@
                     type: 'Lugar',
                     shape: 'circle',
                     color: '#38bdf8',
-                    w: 1.5,
-                    h: 1.5,
+                    w: 2.5,
+                    h: 2.5,
                     x: point.x,
                     y: point.y,
-                    displaySizeVersion: 2
+                    displaySizeVersion: 4
                 };
                 mapGuide.places.push(place);
                 mapGuide.layers.places = true;
