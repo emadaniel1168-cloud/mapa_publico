@@ -5117,49 +5117,33 @@
 
             if (!silent) updateSaveStatus('Vistas guardadas localmente', false);
 
-            const saveToServer = () => {
-                fetch('/', { method: 'GET' }).then(resp => {
-                    if (!resp.ok) throw new Error('Servidor no disponible');
-                    if (showConfirm && !confirm('Esto sobrescribirá data/panoramas.json en el proyecto. ¿Deseas continuar?')) {
-                        updateSaveStatus('Guardado local', false);
-                        return;
-                    }
-                    fetch('/save', {
+            const saveToServer = async () => {
+                if (showConfirm && !confirm('Esto sobrescribirá data/colegio_santander.json en el proyecto. ¿Deseas continuar?')) {
+                    updateSaveStatus('Guardado local', false);
+                    return;
+                }
+                try {
+                    const response = await fetch('api.php?action=guardar_panoramas', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
                         body: JSON.stringify(copy)
-                    }).then(res => res.json()).then(obj => {
-                        if (obj && obj.ok) {
-                            localStorage.removeItem(PENDING_STORAGE_KEY);
-                            updateSaveStatus('Guardado en servidor', false);
-                            if (!silent) alert('Guardado en servidor: ' + obj.path + '\n(Se creó una copia de seguridad si ya existía)');
-                        } else {
-                            throw new Error(obj && obj.error ? obj.error : 'Error al guardar');
-                        }
-                    }).catch(err => {
-                        console.error(err);
-                        updateSaveStatus('Guardado local', false);
-                        if (!silent) {
-                            if (confirm('No fue posible guardar en el servidor. ¿Deseas descargar el JSON en su lugar?')) {
-                                downloadJSON(copy);
-                                alert('Se descargó colegio_santander_export.json. Puedes copiarlo sobre data/colegio_santander.json o iniciar el servidor local para guardarlo automáticamente.');
-                            }
-                        }
                     });
-                }).catch(() => {
+                    const result = await response.json();
+                    if (!response.ok || !result.ok) throw new Error(result.error || 'Error al guardar');
+                    localStorage.removeItem(PENDING_STORAGE_KEY);
+                    updateSaveStatus('Guardado en servidor', false);
+                    if (!silent) alert('Panoramas guardados en el servidor.');
+                } catch (error) {
+                    console.error(error);
                     updateSaveStatus('Guardado local', false);
-                    if (!silent && showConfirm && confirm('Servidor de guardado no está disponible. ¿Deseas descargar el JSON en su lugar?')) {
+                    if (!silent && confirm('No fue posible guardar en el servidor. ¿Deseas descargar el JSON en su lugar?')) {
                         downloadJSON(copy);
-                        alert('Se descargó panoramas_export.json. Puedes copiarlo sobre data/panoramas.json o iniciar el servidor local para guardarlo automáticamente.');
+                        alert('Se descargó colegio_santander_export.json. Puedes copiarlo sobre data/colegio_santander.json.');
                     }
-                });
+                }
             };
 
-            if (showConfirm) {
-                saveToServer();
-            } else {
-                saveToServer();
-            }
+            saveToServer();
         }
 
         document.getElementById('btn-export').onclick = () => {
