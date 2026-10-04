@@ -854,9 +854,9 @@
             "type": "Lugar",
             "shape": "circle",
             "color": "#38bdf8",
-            "w": 4.5,
-            "h": 4.5,
-            "displaySizeVersion": 3,
+            "w": 1.5,
+            "h": 1.5,
+            "displaySizeVersion": 2,
             "x": 85,
             "y": 50
         },
@@ -868,9 +868,9 @@
             "type": "Lugar",
             "shape": "circle",
             "color": "#38bdf8",
-            "w": 4.5,
-            "h": 4.5,
-            "displaySizeVersion": 3,
+            "w": 1.5,
+            "h": 1.5,
+            "displaySizeVersion": 2,
             "x": 65,
             "y": 50
         },
@@ -882,9 +882,9 @@
             "type": "Lugar",
             "shape": "circle",
             "color": "#38bdf8",
-            "w": 4.5,
-            "h": 4.5,
-            "displaySizeVersion": 3,
+            "w": 1.5,
+            "h": 1.5,
+            "displaySizeVersion": 2,
             "x": 45,
             "y": 95
         },
@@ -896,11 +896,11 @@
             "type": "Lugar",
             "shape": "circle",
             "color": "#38bdf8",
-            "w": 4.5,
-            "h": 4.5,
+            "w": 1.5,
+            "h": 1.5,
             "x": 70,
             "y": 90,
-            "displaySizeVersion": 3
+            "displaySizeVersion": 2
         },
         {
             "id": "database-place-1-1791138052251-cb40d82434c5f",
@@ -910,11 +910,11 @@
             "type": "Lugar",
             "shape": "circle",
             "color": "#38bdf8",
-            "w": 4.5,
-            "h": 4.5,
+            "w": 1.5,
+            "h": 1.5,
             "x": 45,
             "y": 85,
-            "displaySizeVersion": 3
+            "displaySizeVersion": 2
         },
         {
             "id": "database-place-2-1791138581474-14a9bc73b25a68",
@@ -924,11 +924,11 @@
             "type": "Lugar",
             "shape": "circle",
             "color": "#38bdf8",
-            "w": 4.5,
-            "h": 4.5,
+            "w": 1.5,
+            "h": 1.5,
             "x": 45,
             "y": 50,
-            "displaySizeVersion": 3
+            "displaySizeVersion": 2
         },
         {
             "id": "database-place-2-1791138682634-1ef09f69cd5688",
@@ -938,11 +938,11 @@
             "type": "Lugar",
             "shape": "circle",
             "color": "#38bdf8",
-            "w": 4.5,
-            "h": 4.5,
+            "w": 1.5,
+            "h": 1.5,
             "x": 45,
             "y": 40,
-            "displaySizeVersion": 3
+            "displaySizeVersion": 2
         },
         {
             "id": "database-place-9-1791144555366-00860068df8928",
@@ -952,11 +952,11 @@
             "type": "Lugar",
             "shape": "circle",
             "color": "#38bdf8",
-            "w": 4.5,
-            "h": 4.5,
+            "w": 1.5,
+            "h": 1.5,
             "x": 65,
             "y": 30,
-            "displaySizeVersion": 3
+            "displaySizeVersion": 2
         },
         {
             "id": "database-place-12-1791146897091-8779f1b32bf91",
@@ -966,11 +966,11 @@
             "type": "Lugar",
             "shape": "circle",
             "color": "#38bdf8",
-            "w": 4.5,
-            "h": 4.5,
+            "w": 1.5,
+            "h": 1.5,
             "x": 68.0704574584961,
             "y": 14.731951713562012,
-            "displaySizeVersion": 3
+            "displaySizeVersion": 2
         },
         {
             "id": "database-place-13-1791147624426-c4424e34217f6",
@@ -980,11 +980,11 @@
             "type": "Lugar",
             "shape": "circle",
             "color": "#38bdf8",
-            "w": 4.5,
-            "h": 4.5,
+            "w": 1.5,
+            "h": 1.5,
             "x": 76.68867492675781,
             "y": 14.731951713562012,
-            "displaySizeVersion": 3
+            "displaySizeVersion": 2
         },
         {
             "id": "database-place-4-1791147702689-e3ad33052e6ff8",
@@ -994,11 +994,11 @@
             "type": "Lugar",
             "shape": "circle",
             "color": "#38bdf8",
-            "w": 4.5,
-            "h": 4.5,
+            "w": 1.5,
+            "h": 1.5,
             "x": 44.022850036621094,
             "y": 70.8373794555664,
-            "displaySizeVersion": 3
+            "displaySizeVersion": 2
         },
         {
             "id": "database-place-5-1791147734025-35584a352f8868",
@@ -1008,11 +1008,11 @@
             "type": "Lugar",
             "shape": "circle",
             "color": "#38bdf8",
-            "w": 4.5,
-            "h": 4.5,
+            "w": 1.5,
+            "h": 1.5,
             "x": 56.394161224365234,
             "y": 74.19624328613281,
-            "displaySizeVersion": 3
+            "displaySizeVersion": 2
         },
         {
             "id": "database-place-10-1791148106393-cf43aa054604e8",
@@ -1022,11 +1022,11 @@
             "type": "Lugar",
             "shape": "circle",
             "color": "#38bdf8",
-            "w": 4.5,
-            "h": 4.5,
+            "w": 1.5,
+            "h": 1.5,
             "x": 52.15455627441406,
             "y": 99.44990539550781,
-            "displaySizeVersion": 3
+            "displaySizeVersion": 2
         }
     ]
 }

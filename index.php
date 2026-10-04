@@ -857,7 +857,7 @@
         const MINIMAP_ADVANCE_KEY = 'mapa360.minimap.advance.v1';
         const MINIMAP_LOCATIONS_FILE = 'data/ubicaciones_puntos_mapa.json';
         const MINIMAP_LOCATIONS_VERSION_KEY = 'mapa360.minimap.locations-import.v1';
-        const MINIMAP_LOCATIONS_VERSION = '2026-10-04-puntos-lugar';
+        const MINIMAP_LOCATIONS_VERSION = '2026-10-04-puntos-lugar-v2';
         const SAVE_DELAY_MS = 500;
         const MAP_SETTINGS_KEY = 'mapa360.google-map.settings.v1';
         const MAP_COLOR_MIGRATION_KEY = 'mapa360.google-map.color-migration.v1';
@@ -3112,6 +3112,14 @@
             });
         }
 
+        function migrateDatabasePlaceSize(place) {
+            if (place.source !== 'catalogo' || Number(place.displaySizeVersion) >= 3) return false;
+            place.w = 4.5;
+            place.h = 4.5;
+            place.displaySizeVersion = 3;
+            return true;
+        }
+
         function queueMapLocationsSave() {
             if (!minimapLocationsReady) return;
             ensureMapPlaceIds();
@@ -3166,11 +3174,19 @@
                             const savedPlaces = Array.isArray(mapGuide.places) ? mapGuide.places : [];
                             const syncedPlaces = savedPlaces.map(place => {
                                 const importedPlace = importedPlaces.find(item => item.id && item.id === place.id);
-                                return importedPlace ? { ...place, ...importedPlace } : place;
+                                if (!importedPlace) return place;
+                                const mergedPlace = { ...place, ...importedPlace };
+                                if (Number(place.displaySizeVersion) > Number(importedPlace.displaySizeVersion)) {
+                                    mergedPlace.w = place.w;
+                                    mergedPlace.h = place.h;
+                                    mergedPlace.displaySizeVersion = place.displaySizeVersion;
+                                }
+                                return mergedPlace;
                             });
                             const syncedPlaceIds = new Set(syncedPlaces.map(place => String(place.id)));
                             importedPlaces.forEach((place, index) => {
                                 const importedPlace = { ...place };
+                                migrateDatabasePlaceSize(importedPlace);
                                 if (importedPlace.id && syncedPlaceIds.has(String(importedPlace.id))) return;
                                 if (!importedPlace.id) {
                                     importedPlace.id = `map-place-import-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`;
@@ -3205,7 +3221,9 @@
             minimapLocationsReady = true;
             const hasSavedLocations = localStorage.getItem(MINIMAP_INDICATOR_KEY) !== null
                 || localStorage.getItem(MINIMAP_ADVANCE_KEY) !== null;
-            if (syncImportedLocations || locationsFileLoaded || hasSavedLocations) queueMapLocationsSave();
+            if (syncImportedLocations || locationsFileLoaded || hasSavedLocations || (mapGuide.places || []).length > 0) {
+                queueMapLocationsSave();
+            }
         }
 
         function saveMiniMapState() {
@@ -4513,12 +4531,7 @@
             try { const saved = JSON.parse(localStorage.getItem(MAP_GUIDE_KEY) || 'null'); if (saved) mapGuide = { ...mapGuide, ...saved, layers: { ...mapGuide.layers, ...(saved.layers || {}) } }; } catch (error) { console.warn('No se pudo cargar el mapa guía', error); }
             let resizedDatabasePlace = false;
             (Array.isArray(mapGuide.places) ? mapGuide.places : []).forEach(place => {
-                if (place.source !== 'catalogo' || Number(place.displaySizeVersion) >= 2) return;
-                place.w = 1.5;
-                place.h = 1.5;
-                delete place.labelSize;
-                place.displaySizeVersion = 2;
-                resizedDatabasePlace = true;
+                if (migrateDatabasePlaceSize(place)) resizedDatabasePlace = true;
             });
             if (resizedDatabasePlace) saveMapGuide();
             renderMapGuide();
