@@ -846,6 +846,8 @@
         let minimapPlacementMode = null;
         let minimapIndicator = { x: 50, y: 50 };
         let minimapAdvancePoints = [];
+        let minimapLocationsReady = false;
+        let minimapLocationsSaveTimer = null;
         const STORAGE_KEY = 'mapa360.panoramas.v3';
         const PENDING_STORAGE_KEY = 'mapa360.panoramas.pending.v3';
         const PENDING_IMPORT_KEY = 'mapa360.pending-import.entrada-principal.v2';
@@ -855,7 +857,7 @@
         const MINIMAP_ADVANCE_KEY = 'mapa360.minimap.advance.v1';
         const MINIMAP_LOCATIONS_FILE = 'data/ubicaciones_puntos_mapa.json';
         const MINIMAP_LOCATIONS_VERSION_KEY = 'mapa360.minimap.locations-import.v1';
-        const MINIMAP_LOCATIONS_VERSION = '2026-10-04';
+        const MINIMAP_LOCATIONS_VERSION = '2026-10-04-puntos-lugar';
         const SAVE_DELAY_MS = 500;
         const MAP_SETTINGS_KEY = 'mapa360.google-map.settings.v1';
         const MAP_COLOR_MIGRATION_KEY = 'mapa360.google-map.color-migration.v1';
@@ -3100,13 +3102,50 @@
             imagen9: { x: 43, y: 76 }
         };
 
+        function ensureMapPlaceIds() {
+            const usedIds = new Set();
+            (Array.isArray(mapGuide.places) ? mapGuide.places : []).forEach((place, index) => {
+                if (!place.id || usedIds.has(String(place.id))) {
+                    place.id = `map-place-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`;
+                }
+                usedIds.add(String(place.id));
+            });
+        }
+
+        function queueMapLocationsSave() {
+            if (!minimapLocationsReady) return;
+            ensureMapPlaceIds();
+            if (minimapLocationsSaveTimer) clearTimeout(minimapLocationsSaveTimer);
+            minimapLocationsSaveTimer = setTimeout(async () => {
+                const locations = {
+                    indicador: minimapIndicator ? { ...minimapIndicator } : null,
+                    puntosAvance: minimapAdvancePoints.map(point => ({ ...point })),
+                    puntosLugar: (mapGuide.places || []).map(place => ({ ...place }))
+                };
+                try {
+                    const response = await fetch('api.php?action=guardar_ubicaciones_puntos', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(locations)
+                    });
+                    const result = await response.json();
+                    if (!response.ok || !result.ok) throw new Error(result.error || 'No se pudieron guardar las ubicaciones.');
+                } catch (error) {
+                    console.warn('No se pudieron guardar las ubicaciones en el servidor', error);
+                }
+            }, 350);
+        }
+
         async function loadMiniMapState() {
+            let syncImportedLocations = false;
+            let locationsFileLoaded = false;
             try {
                 if (localStorage.getItem(MINIMAP_LOCATIONS_VERSION_KEY) !== MINIMAP_LOCATIONS_VERSION) {
                     const response = await fetch(MINIMAP_LOCATIONS_FILE, { cache: 'no-store' });
                     if (response.ok) {
                         const imported = await response.json();
                         if (imported.indicador && Array.isArray(imported.puntosAvance)) {
+                            locationsFileLoaded = true;
                             localStorage.setItem(MINIMAP_INDICATOR_KEY, JSON.stringify(imported.indicador));
                             const savedPoints = JSON.parse(localStorage.getItem(MINIMAP_ADVANCE_KEY) || 'null');
                             const syncedPoints = Array.isArray(savedPoints)
@@ -3122,7 +3161,27 @@
                                 if (!point.id || !savedPointIds.has(point.id)) syncedPoints.push(point);
                             });
                             localStorage.setItem(MINIMAP_ADVANCE_KEY, JSON.stringify(syncedPoints));
+                            ensureMapPlaceIds();
+                            const importedPlaces = Array.isArray(imported.puntosLugar) ? imported.puntosLugar : [];
+                            const savedPlaces = Array.isArray(mapGuide.places) ? mapGuide.places : [];
+                            const syncedPlaces = savedPlaces.map(place => {
+                                const importedPlace = importedPlaces.find(item => item.id && item.id === place.id);
+                                return importedPlace ? { ...place, ...importedPlace } : place;
+                            });
+                            const syncedPlaceIds = new Set(syncedPlaces.map(place => String(place.id)));
+                            importedPlaces.forEach((place, index) => {
+                                const importedPlace = { ...place };
+                                if (importedPlace.id && syncedPlaceIds.has(String(importedPlace.id))) return;
+                                if (!importedPlace.id) {
+                                    importedPlace.id = `map-place-import-${Date.now()}-${index}-${Math.random().toString(16).slice(2)}`;
+                                }
+                                syncedPlaceIds.add(String(importedPlace.id));
+                                syncedPlaces.push(importedPlace);
+                            });
+                            mapGuide.places = syncedPlaces;
+                            localStorage.setItem(MAP_GUIDE_KEY, JSON.stringify(mapGuide));
                             localStorage.setItem(MINIMAP_LOCATIONS_VERSION_KEY, MINIMAP_LOCATIONS_VERSION);
+                            syncImportedLocations = true;
                         }
                     }
                 }
@@ -3143,6 +3202,10 @@
             } catch (error) {
                 console.warn('No se pudo cargar el estado del mini mapa', error);
             }
+            minimapLocationsReady = true;
+            const hasSavedLocations = localStorage.getItem(MINIMAP_INDICATOR_KEY) !== null
+                || localStorage.getItem(MINIMAP_ADVANCE_KEY) !== null;
+            if (syncImportedLocations || locationsFileLoaded || hasSavedLocations) queueMapLocationsSave();
         }
 
         function saveMiniMapState() {
@@ -3151,7 +3214,9 @@
                 localStorage.setItem(MINIMAP_ADVANCE_KEY, JSON.stringify(minimapAdvancePoints));
                 mapGuide.minimapIndicator = minimapIndicator;
                 mapGuide.minimapAdvancePoints = minimapAdvancePoints;
+                ensureMapPlaceIds();
                 localStorage.setItem(MAP_GUIDE_KEY, JSON.stringify(mapGuide));
+                queueMapLocationsSave();
             } catch (error) {
                 console.warn('No se pudo guardar el estado del mini mapa', error);
             }
@@ -4435,7 +4500,13 @@
         }
 
         function saveMapGuide() {
-            try { localStorage.setItem(MAP_GUIDE_KEY, JSON.stringify(mapGuide)); } catch (error) { console.warn('No se pudo guardar el mapa guía', error); }
+            try {
+                ensureMapPlaceIds();
+                localStorage.setItem(MAP_GUIDE_KEY, JSON.stringify(mapGuide));
+                queueMapLocationsSave();
+            } catch (error) {
+                console.warn('No se pudo guardar el mapa guía', error);
+            }
         }
 
         function loadMapGuide() {
@@ -5097,7 +5168,8 @@
         function downloadMapPointLocations() {
             downloadJSON({
                 indicador: minimapIndicator ? { ...minimapIndicator } : null,
-                puntosAvance: minimapAdvancePoints.map(point => ({ ...point }))
+                puntosAvance: minimapAdvancePoints.map(point => ({ ...point })),
+                puntosLugar: (mapGuide.places || []).map(place => ({ ...place }))
             }, 'ubicaciones_puntos_mapa.json');
         }
 

@@ -37,6 +37,46 @@ try {
         jsonResponse(['ok' => true, 'items' => $items]);
     }
 
+    if ($action === 'guardar_ubicaciones_puntos') {
+        if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
+            jsonResponse(['ok' => false, 'error' => 'Método no permitido'], 405);
+        }
+
+        $data = requestJson();
+        if (!is_array($data['puntosAvance'] ?? null) || !is_array($data['puntosLugar'] ?? null)) {
+            jsonResponse(['ok' => false, 'error' => 'Las listas de puntos no son válidas'], 422);
+        }
+        if (isset($data['indicador']) && $data['indicador'] !== null && !is_array($data['indicador'])) {
+            jsonResponse(['ok' => false, 'error' => 'El indicador no es válido'], 422);
+        }
+
+        $locations = [
+            'indicador' => $data['indicador'] ?? null,
+            'puntosAvance' => $data['puntosAvance'],
+            'puntosLugar' => $data['puntosLugar'],
+        ];
+        $dataPath = __DIR__ . DIRECTORY_SEPARATOR . 'data' . DIRECTORY_SEPARATOR . 'ubicaciones_puntos_mapa.json';
+        $json = json_encode($locations, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($json === false) {
+            jsonResponse(['ok' => false, 'error' => 'No se pudieron codificar las ubicaciones'], 500);
+        }
+
+        if (is_file($dataPath) && file_get_contents($dataPath) !== $json) {
+            $backupPath = dirname($dataPath) . DIRECTORY_SEPARATOR . 'ubicaciones_puntos_mapa.backup.' . date('YmdHis') . '.json';
+            if (!copy($dataPath, $backupPath)) {
+                jsonResponse(['ok' => false, 'error' => 'No se pudo crear la copia de ubicaciones'], 500);
+            }
+        }
+
+        $tempPath = $dataPath . '.tmp';
+        if (file_put_contents($tempPath, $json, LOCK_EX) === false || !rename($tempPath, $dataPath)) {
+            if (is_file($tempPath)) unlink($tempPath);
+            jsonResponse(['ok' => false, 'error' => 'No se pudieron guardar las ubicaciones'], 500);
+        }
+
+        jsonResponse(['ok' => true, 'message' => 'Ubicaciones guardadas correctamente']);
+    }
+
     if ($action === 'guardar_panoramas') {
         if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
             jsonResponse(['ok' => false, 'error' => 'Método no permitido'], 405);
