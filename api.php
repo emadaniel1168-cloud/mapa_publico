@@ -121,7 +121,6 @@ try {
                 $stmt = $pdo->query(
                     'SELECT id_profesor, nombre_completo
                      FROM profesores
-                     WHERE activo = 1
                      ORDER BY nombre_completo'
                 );
                 jsonResponse(['ok' => true, 'items' => $stmt->fetchAll()]);
@@ -130,7 +129,7 @@ try {
             $stmt = $pdo->prepare(
                 'SELECT id_profesor, nombre_completo
                  FROM profesores
-                 WHERE activo = 1 AND nombre_completo LIKE :q
+                 WHERE nombre_completo LIKE :q
                  ORDER BY nombre_completo'
             );
             $stmt->execute(['q' => '%' . $q . '%']);
@@ -193,7 +192,6 @@ try {
             $stmt = $pdo->query(
                 'SELECT id_grado, id_jornada AS jornada
                  FROM grados
-                 WHERE activo = 1
                  ORDER BY id_grado'
             );
             jsonResponse(['ok' => true, 'items' => $stmt->fetchAll()]);

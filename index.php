@@ -1149,8 +1149,10 @@
             input.dataset.autocompleteReady = 'true';
             const profesores = profesoresColegio.map(item => item.nombre).sort((a, b) => a.localeCompare(b, 'es'));
             input.addEventListener('input', () => {
-                const query = input.value.trim().toLowerCase();
                 const isSimpleMode = document.getElementById('label-alert-form-mode')?.value === 'simple';
+                const showAllProfessors = input.dataset.showAllProfessors === 'true' && !isSimpleMode;
+                delete input.dataset.showAllProfessors;
+                const query = showAllProfessors ? '' : input.value.trim().toLowerCase();
                 const placeSelect = document.getElementById('label-lugar-db');
                 if (isSimpleMode && placeSelect?.selectedOptions[0]?.dataset.title !== input.value.trim()) {
                     placeSelect.value = '';
@@ -1197,7 +1199,12 @@
                 }
                 box.innerHTML = '';
             }, 150));
-            input.addEventListener('focus', () => input.dispatchEvent(new Event('input')));
+            input.addEventListener('focus', () => {
+                if (document.getElementById('label-alert-form-mode')?.value !== 'simple') {
+                    input.dataset.showAllProfessors = 'true';
+                }
+                input.dispatchEvent(new Event('input'));
+            });
         }
         function configurarBusquedaPorSalon() {
             const salonInput = document.getElementById('label-salon');
@@ -3930,10 +3937,6 @@
 
             if (category === 'grado') {
                 gradosColegioDesdeBase.forEach(value => values.add(value));
-                horariosColegio.forEach(horario => {
-                    const value = String(horario.grado || '').trim();
-                    if (value && value !== '-') values.add(value);
-                });
             }
 
             if (category === 'salon') {
@@ -3942,11 +3945,17 @@
                     if (salon && salon !== '-') values.add(normalizarNombreSalon(salon));
                 });
             }
-            entries.forEach(entry => {
-                if (category === 'profesor' && (entry.type === 'database-place' || entry.type === 'simple-alert')) return;
-                const value = getQuickNavEntryValue(category, entry);
-                if (value && !(category === 'grado' && value === '-')) values.add(value);
-            });
+            if (category === 'profesor') {
+                profesoresColegio.forEach(profesor => {
+                    if (profesor.nombre) values.add(profesor.nombre);
+                });
+            }
+            if (category !== 'grado' && category !== 'profesor') {
+                entries.forEach(entry => {
+                    const value = getQuickNavEntryValue(category, entry);
+                    if (value) values.add(value);
+                });
+            }
             const compare = category === 'salon'
                 ? compararNombresSalon
                 : category === 'grado'
