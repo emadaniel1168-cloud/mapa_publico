@@ -5323,8 +5323,7 @@
                 loadMapSettings();
         loadMapGuide();
                 loadMiniMapState().then(() => {
-                    cargarHorariosColegio();
-                    return loadPanoramas();
+                    return cargarHorariosColegio().then(() => loadPanoramas());
                 }).then(loadImageCatalog).then(() => {
             if (!Array.isArray(panoramas) || !panoramas.length) {
                 updateSaveStatus('No hay datos del colegio', false);
