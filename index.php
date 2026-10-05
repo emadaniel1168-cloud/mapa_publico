@@ -2763,9 +2763,14 @@
             if (!hs) return false;
             const currentId = currentPano?.id;
             if (!routePath || !routePath.length) {
-                return !!(routeTargetId && hs.targetId === routeTargetId && hs.sourceImage === currentId);
+                return !!(routeTargetId && hs.targetId === routeTargetId && (!hs.sourceImage || hs.sourceImage === currentId));
             }
-            return routePath.some(step => step && step.fromId === currentId && step.hotspot === hs);
+            const activeStep = routePath.find(step => step && step.fromId === currentId);
+            if (!activeStep) return false;
+            if (activeStep.hotspot === hs) return true;
+            return activeStep.toId === hs.targetId
+                && Math.abs(Number(activeStep.hotspot?.pitch) - Number(hs.pitch)) < 0.001
+                && Math.abs(Number(activeStep.hotspot?.yaw) - Number(hs.yaw)) < 0.001;
         }
 
         function getRouteHotspotView(panoId = currentPano?.id) {
@@ -2794,7 +2799,9 @@
 
             currentPano.hotspots.forEach((hs, i) => {
                 const isArrow = !hs.type || hs.type === 'arrow';
-                const normalizedColor = isActiveRouteHotspot(hs) || (isArrow && hs.color === 'green') ? 'blue' : (hs.color || 'white');
+                const isRouteHotspot = isActiveRouteHotspot(hs);
+                const isRouteArrow = isRouteHotspot && isArrow;
+                const normalizedColor = isRouteHotspot || (isArrow && hs.color === 'green') ? 'blue' : (hs.color || 'white');
                 const isExclamationLike = hs.type === 'exclamation' || hs.type === 'simple-alert';
                 viewer.addHotSpot({
                     "id": "h"+i, "pitch": hs.pitch, "yaw": hs.yaw, "cssClass": hs.type === 'circle' ? 'circle-hotspot' : isExclamationLike ? 'exclamation-hotspot' : 'custom-arrow',
@@ -2817,10 +2824,16 @@
                             inner.style.boxShadow = `0 0 0 3px ${markerColor}59, 0 4px 12px rgba(0, 0, 0, 0.45)`;
                             inner.style.filter = 'none';
                         } else {
-                            const arrowColor = normalizedColor === 'green' ? '#38bdf8' : '#ffffff';
+                            const isBlueArrow = normalizedColor === 'blue' || normalizedColor === 'green';
+                            const arrowColor = isBlueArrow ? '#38bdf8' : '#ffffff';
                             inner.style.backgroundImage = getArrowSvgDataUri(arrowColor);
-                            inner.style.backgroundColor = normalizedColor === 'green' ? 'rgba(56, 189, 248, 0.18)' : 'transparent';
-                            inner.style.filter = normalizedColor === 'green' ? 'drop-shadow(0 0 6px rgba(56,189,248,0.9))' : (f[normalizedColor] || f.white);
+                            inner.style.backgroundColor = 'transparent';
+                            inner.style.filter = isBlueArrow ? 'none' : (f[normalizedColor] || f.white);
+                            if (isRouteArrow) {
+                                inner.style.setProperty('background-image', getArrowSvgDataUri('#38bdf8'), 'important');
+                                inner.style.setProperty('background-color', 'transparent', 'important');
+                                inner.style.setProperty('filter', 'none', 'important');
+                            }
                         }
                         inner.style.touchAction = 'none';
                         inner.style.cursor = 'pointer';
