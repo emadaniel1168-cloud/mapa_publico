@@ -874,6 +874,7 @@
         let draggingPathPoint = null;
         let mapClipboard = null;
         let horariosColegio = [];
+        let gradosColegioDesdeBase = [];
         let lugaresSugeridos = [];
         let lugaresDisponibles = [];
         let lugaresBaseDeDatos = [];
@@ -943,10 +944,11 @@
                 const gradesResponse = await fetch('api.php?action=grados', { cache: 'no-store' });
                 const gradesPayload = await gradesResponse.json();
                 if (!gradesResponse.ok || !gradesPayload?.ok) return;
-                const loadedGrades = new Set(horariosColegio.map(item => String(item.grado || '').trim()));
-                const missingGrades = (gradesPayload.items || [])
+                gradosColegioDesdeBase = (gradesPayload.items || [])
                     .map(item => String(item.id_grado || '').trim())
-                    .filter(grade => grade && !loadedGrades.has(grade));
+                    .filter(grade => grade && grade !== '-');
+                const loadedGrades = new Set(horariosColegio.map(item => String(item.grado || '').trim()));
+                const missingGrades = gradosColegioDesdeBase.filter(grade => !loadedGrades.has(grade));
                 const missingSchedules = await Promise.all(missingGrades.map(async grade => {
                     try {
                         const response = await fetch(`api.php?action=horarios&grado=${encodeURIComponent(grade)}`, { cache: 'no-store' });
@@ -3890,6 +3892,7 @@
             const values = new Set();
 
             if (category === 'grado') {
+                gradosColegioDesdeBase.forEach(value => values.add(value));
                 horariosColegio.forEach(horario => {
                     const value = String(horario.grado || '').trim();
                     if (value && value !== '-') values.add(value);
@@ -3919,6 +3922,13 @@
                 option.value = value;
                 option.textContent = value;
                 target.appendChild(option);
+            });
+        }
+
+        function actualizarOpcionesGradoDesdeBase() {
+            return completarHorariosFaltantesDesdeBase().then(() => {
+                configurarHorariosColegio();
+                populateQuickNavOptions();
             });
         }
 
@@ -4130,12 +4140,20 @@
                     if (!panel) return;
                     const isCollapsed = panel.classList.toggle('collapsed');
                     toggle.textContent = isCollapsed ? '☰ Mostrar menú de vista' : '☰ Ocultar menú de vista';
+                    if (!isCollapsed && document.getElementById('quick-nav-category')?.value === 'grado') {
+                        actualizarOpcionesGradoDesdeBase();
+                    }
                 };
             }
             const category = document.getElementById('quick-nav-category');
             if (category) {
                 category.onchange = () => {
                     clearActiveRoute();
+                    if (category.value === 'grado') {
+                        populateQuickNavOptions();
+                        actualizarOpcionesGradoDesdeBase();
+                        return;
+                    }
                     if (category.value === 'lugar') {
                         const pendingLoads = [];
                         if (!lugaresCatalogo.length) pendingLoads.push(cargarCatalogoLugares());
