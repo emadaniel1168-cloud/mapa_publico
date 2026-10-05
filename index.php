@@ -923,33 +923,69 @@
             }
         }
 
+        function normalizarHorarioDeBase(horario) {
+            return {
+                id_horario: horario.id_horario,
+                grado: horario.id_grado,
+                dia: horario.dia_semana,
+                bloque: horario.num_bloque_clase,
+                curso: horario.materia,
+                profesor: horario.id_profesor,
+                salon: horario.salon,
+                hora_fin_sena: horario.hora_fin_sena,
+                hora_inicio: horario.hora_inicio,
+                hora_fin: horario.hora_fin
+            };
+        }
+
+        async function completarHorariosFaltantesDesdeBase() {
+            try {
+                const gradesResponse = await fetch('api.php?action=grados', { cache: 'no-store' });
+                const gradesPayload = await gradesResponse.json();
+                if (!gradesResponse.ok || !gradesPayload?.ok) return;
+                const loadedGrades = new Set(horariosColegio.map(item => String(item.grado || '').trim()));
+                const missingGrades = (gradesPayload.items || [])
+                    .map(item => String(item.id_grado || '').trim())
+                    .filter(grade => grade && !loadedGrades.has(grade));
+                const missingSchedules = await Promise.all(missingGrades.map(async grade => {
+                    try {
+                        const response = await fetch(`api.php?action=horarios&grado=${encodeURIComponent(grade)}`, { cache: 'no-store' });
+                        const payload = await response.json();
+                        return response.ok && payload?.ok ? (payload.items || []).map(normalizarHorarioDeBase) : [];
+                    } catch (error) {
+                        console.warn(`No se pudieron cargar los horarios del grado ${grade}`, error);
+                        return [];
+                    }
+                }));
+                const loadedIds = new Set(horariosColegio.map(item => String(item.id_horario)));
+                missingSchedules.flat().forEach(item => {
+                    const id = String(item.id_horario || '');
+                    if (id && !loadedIds.has(id)) {
+                        loadedIds.add(id);
+                        horariosColegio.push(item);
+                    }
+                });
+            } catch (error) {
+                console.warn('No se pudieron completar los grados desde la base de datos', error);
+            }
+        }
+
         async function cargarHorariosColegio() {
             try {
-                const response = await fetch('data/horarios.json', { cache: 'no-store' });
+                const response = await fetch('horarios.json', { cache: 'no-store' });
                 const payload = await response.json();
                 horariosColegio = Array.isArray(payload) ? payload : (payload.horarios || []);
-                configurarHorariosColegio();
             } catch (error) {
                 try {
                     const response = await fetch('api.php?action=horarios', { cache: 'no-store' });
                     const payload = await response.json();
-                    horariosColegio = (payload.items || []).map(h => ({
-                        id_horario: h.id_horario,
-                        grado: h.id_grado,
-                        dia: h.dia_semana,
-                        bloque: h.num_bloque_clase,
-                        curso: h.materia,
-                        profesor: h.id_profesor,
-                        salon: h.salon,
-                        hora_fin_sena: h.hora_fin_sena,
-                        hora_inicio: h.hora_inicio,
-                        hora_fin: h.hora_fin
-                    }));
-                    configurarHorariosColegio();
+                    horariosColegio = (payload.items || []).map(normalizarHorarioDeBase);
                 } catch (fallbackError) {
                     console.warn('No se pudo cargar el listado de horarios', fallbackError);
                 }
             }
+            await completarHorariosFaltantesDesdeBase();
+            configurarHorariosColegio();
         }
 
         function configurarHorariosColegio() {
@@ -3809,6 +3845,19 @@
             return a.localeCompare(b, 'es', { sensitivity: 'base' });
         }
 
+        function compararNombresGrado(a, b) {
+            const gradeA = String(a).match(/^(\d+)\s*[-–]\s*(\d+)$/);
+            const gradeB = String(b).match(/^(\d+)\s*[-–]\s*(\d+)$/);
+            if (gradeA && gradeB) {
+                return Number(gradeA[1]) - Number(gradeB[1])
+                    || Number(gradeA[2]) - Number(gradeB[2])
+                    || a.localeCompare(b, 'es');
+            }
+            if (gradeA) return -1;
+            if (gradeB) return 1;
+            return a.localeCompare(b, 'es', { sensitivity: 'base' });
+        }
+
         function normalizarClaveLugar(value) {
             const key = diaNormalizado(value).replace(/\s+/g, ' ').trim();
             const aliases = {
@@ -3843,7 +3892,7 @@
             if (category === 'grado') {
                 horariosColegio.forEach(horario => {
                     const value = String(horario.grado || '').trim();
-                    if (value) values.add(value);
+                    if (value && value !== '-') values.add(value);
                 });
             }
 
@@ -3856,9 +3905,13 @@
             entries.forEach(entry => {
                 if (category === 'profesor' && (entry.type === 'database-place' || entry.type === 'simple-alert')) return;
                 const value = getQuickNavEntryValue(category, entry);
-                if (value) values.add(value);
+                if (value && !(category === 'grado' && value === '-')) values.add(value);
             });
-            const compare = category === 'salon' ? compararNombresSalon : (a, b) => a.localeCompare(b, 'es');
+            const compare = category === 'salon'
+                ? compararNombresSalon
+                : category === 'grado'
+                    ? compararNombresGrado
+                    : (a, b) => a.localeCompare(b, 'es');
             const list = [...values].sort(compare);
             target.innerHTML = '<option value="">Selecciona una opción</option>';
             list.forEach(value => {
