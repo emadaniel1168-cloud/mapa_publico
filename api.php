@@ -119,23 +119,21 @@ try {
 
             if ($q === '') {
                 $stmt = $pdo->query(
-                    'SELECT id_profesor, nombre_completo, nombre_completo AS especialidad
+                    'SELECT id_profesor, nombre_completo
                      FROM profesores
                      WHERE activo = 1
-                     ORDER BY nombre_completo
-                     LIMIT 10'
+                     ORDER BY nombre_completo'
                 );
                 jsonResponse(['ok' => true, 'items' => $stmt->fetchAll()]);
             }
 
             $stmt = $pdo->prepare(
-                'SELECT id_profesor, nombre_completo, nombre_completo AS especialidad
+                'SELECT id_profesor, nombre_completo
                  FROM profesores
                  WHERE activo = 1 AND nombre_completo LIKE :q
-                 ORDER BY nombre_completo
-                 LIMIT 10'
+                 ORDER BY nombre_completo'
             );
-            $stmt->execute(['q' => $q . '%']);
+            $stmt->execute(['q' => '%' . $q . '%']);
 
             jsonResponse(['ok' => true, 'items' => $stmt->fetchAll()]);
             break;

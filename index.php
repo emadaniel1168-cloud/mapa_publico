@@ -874,6 +874,7 @@
         let draggingPathPoint = null;
         let mapClipboard = null;
         let horariosColegio = [];
+        let profesoresColegio = [];
         let gradosColegioDesdeBase = [];
         let lugaresSugeridos = [];
         let lugaresDisponibles = [];
@@ -939,6 +940,25 @@
             };
         }
 
+        async function cargarProfesoresColegio() {
+            try {
+                const response = await fetch('api.php?action=profesores', { cache: 'no-store' });
+                const payload = await response.json();
+                if (!response.ok || !payload?.ok || !Array.isArray(payload.items)) {
+                    throw new Error(payload?.error || 'No se pudieron cargar los profesores.');
+                }
+                profesoresColegio = payload.items
+                    .map(item => ({
+                        id: item.id_profesor,
+                        nombre: String(item.nombre_completo || '').trim()
+                    }))
+                    .filter(item => item.nombre);
+            } catch (error) {
+                console.warn('No se pudo cargar el listado completo de profesores', error);
+                profesoresColegio = [];
+            }
+        }
+
         async function completarHorariosFaltantesDesdeBase() {
             try {
                 const gradesResponse = await fetch('api.php?action=grados', { cache: 'no-store' });
@@ -990,6 +1010,7 @@
                 }
             }
             await completarHorariosFaltantesDesdeBase();
+            await cargarProfesoresColegio();
             configurarHorariosColegio();
         }
 
@@ -1126,7 +1147,7 @@
             const box = document.getElementById('sugerencias-profesores');
             if (!input || !box || input.dataset.autocompleteReady) return;
             input.dataset.autocompleteReady = 'true';
-            const profesores = [...new Set(horariosColegio.map(h => h.profesor).filter(p => p && p !== '-'))].sort((a, b) => a.localeCompare(b, 'es'));
+            const profesores = profesoresColegio.map(item => item.nombre).sort((a, b) => a.localeCompare(b, 'es'));
             input.addEventListener('input', () => {
                 const query = input.value.trim().toLowerCase();
                 const isSimpleMode = document.getElementById('label-alert-form-mode')?.value === 'simple';
@@ -1157,8 +1178,7 @@
                     }
                     return;
                 }
-                if (!query) return;
-                profesores.filter(p => p.toLowerCase().includes(query)).slice(0, 8).forEach(profesor => {
+                profesores.filter(p => p.toLowerCase().includes(query)).forEach(profesor => {
                     const option = document.createElement('button');
                     option.type = 'button'; option.className = 'sugerencia-profesor'; option.textContent = profesor;
                     option.addEventListener('mousedown', event => {
@@ -1177,6 +1197,7 @@
                 }
                 box.innerHTML = '';
             }, 150));
+            input.addEventListener('focus', () => input.dispatchEvent(new Event('input')));
         }
         function configurarBusquedaPorSalon() {
             const salonInput = document.getElementById('label-salon');
