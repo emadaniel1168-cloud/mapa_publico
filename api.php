@@ -119,19 +119,20 @@ try {
 
             if ($q === '') {
                 $stmt = $pdo->query(
-                    'SELECT id_profesor, especialidad
+                    'SELECT id_profesor, nombre_completo, nombre_completo AS especialidad
                      FROM profesores
-                     ORDER BY id_profesor
+                     WHERE activo = 1
+                     ORDER BY nombre_completo
                      LIMIT 10'
                 );
                 jsonResponse(['ok' => true, 'items' => $stmt->fetchAll()]);
             }
 
             $stmt = $pdo->prepare(
-                'SELECT id_profesor, especialidad
+                'SELECT id_profesor, nombre_completo, nombre_completo AS especialidad
                  FROM profesores
-                 WHERE id_profesor LIKE :q
-                 ORDER BY id_profesor
+                 WHERE activo = 1 AND nombre_completo LIKE :q
+                 ORDER BY nombre_completo
                  LIMIT 10'
             );
             $stmt->execute(['q' => $q . '%']);
@@ -148,37 +149,41 @@ try {
                 'SELECT
                     h.id_horario,
                     h.id_grado,
-                    h.dia_semana,
-                    h.num_bloque_clase,
-                    h.materia,
-                    h.id_profesor,
-                    h.salon,
-                    h.hora_fin_sena,
+                          d.nombre AS dia_semana,
+                          b.numero_bloque AS num_bloque_clase,
+                          m.nombre AS materia,
+                          p.nombre_completo AS id_profesor,
+                          p.nombre_completo AS profesor,
+                          h.id_profesor AS profesor_id,
+                          s.nombre AS salon,
+                          NULL AS hora_fin_sena,
                     b.hora_inicio,
-                    COALESCE(h.hora_fin_sena, b.hora_fin) AS hora_fin
-                 FROM horarios h
-                 INNER JOIN grados g ON g.id_grado = h.id_grado
-                 INNER JOIN bloques_horarios b
-                    ON b.jornada = g.jornada
-                   AND b.num_bloque = CAST(h.num_bloque_clase AS CHAR)
-                 WHERE 1 = 1';
+                          b.hora_fin
+                      FROM horario_semanal h
+                      INNER JOIN dias_semana d ON d.id_dia = h.id_dia
+                      INNER JOIN bloques_horarios b ON b.id_bloque = h.id_bloque
+                      INNER JOIN materias m ON m.id_materia = h.id_materia
+                      LEFT JOIN profesores p ON p.id_profesor = h.id_profesor
+                      LEFT JOIN salones s ON s.id_salon = h.id_salon
+                      WHERE h.estado <> \'CANCELADA\'';
 
             $params = [];
 
             if ($profesor !== '') {
-                $sql .= ' AND h.id_profesor = :profesor';
-                $params['profesor'] = $profesor;
+                $sql .= ' AND (p.nombre_completo = :profesor_nombre OR CAST(h.id_profesor AS CHAR) = :profesor_id)';
+                $params['profesor_nombre'] = $profesor;
+                $params['profesor_id'] = $profesor;
             }
             if ($grado !== '') {
                 $sql .= ' AND h.id_grado = :grado';
                 $params['grado'] = $grado;
             }
             if ($dia !== '') {
-                $sql .= ' AND h.dia_semana = :dia';
+                $sql .= ' AND d.nombre = :dia';
                 $params['dia'] = $dia;
             }
 
-            $sql .= ' ORDER BY h.id_grado, h.dia_semana, h.num_bloque_clase LIMIT 1000';
+            $sql .= ' ORDER BY h.id_grado, d.orden_dia, b.numero_bloque LIMIT 5000';
 
             $stmt = $pdo->prepare($sql);
             $stmt->execute($params);
@@ -188,20 +193,33 @@ try {
 
         case 'grados':
             $stmt = $pdo->query(
-                'SELECT id_grado, jornada FROM grados ORDER BY id_grado'
+                'SELECT id_grado, id_jornada AS jornada
+                 FROM grados
+                 WHERE activo = 1
+                 ORDER BY id_grado'
             );
             jsonResponse(['ok' => true, 'items' => $stmt->fetchAll()]);
             break;
 
         case 'catalogo_lugares':
             $stmt = $pdo->query(
-                'SELECT id AS id_lugar, nombre AS titulo FROM lugares ORDER BY nombre'
+                'SELECT id_lugar, nombre AS titulo
+                 FROM lugares
+                 WHERE activo = 1
+                 ORDER BY nombre'
             );
             jsonResponse(['ok' => true, 'items' => $stmt->fetchAll()]);
             break;
 
         case 'lugares':
             $panoramaId = trim((string)($_GET['panorama_id'] ?? ''));
+            $tableExists = $pdo->query(
+                "SELECT COUNT(*) FROM information_schema.tables
+                 WHERE table_schema = DATABASE() AND table_name = 'lugares_360'"
+            )->fetchColumn();
+            if ((int)$tableExists === 0) {
+                jsonResponse(['ok' => true, 'items' => []]);
+            }
 
             $sql =
                 'SELECT
@@ -213,18 +231,19 @@ try {
                     l.yaw,
                     h.id_horario,
                     h.id_grado,
-                    h.dia_semana,
-                    h.materia,
-                    h.id_profesor,
-                    h.salon,
+                          d.nombre AS dia_semana,
+                          m.nombre AS materia,
+                          p.nombre_completo AS id_profesor,
+                          s.nombre AS salon,
                     b.hora_inicio,
                     b.hora_fin
                  FROM lugares_360 l
-                 LEFT JOIN horarios h ON h.id_horario = l.id_horario
-                 LEFT JOIN grados g ON g.id_grado = h.id_grado
-                 LEFT JOIN bloques_horarios b
-                    ON b.jornada = g.jornada
-                   AND b.num_bloque = CAST(h.num_bloque_clase AS CHAR)
+                      LEFT JOIN horario_semanal h ON h.id_horario = l.id_horario
+                      LEFT JOIN dias_semana d ON d.id_dia = h.id_dia
+                      LEFT JOIN bloques_horarios b ON b.id_bloque = h.id_bloque
+                      LEFT JOIN materias m ON m.id_materia = h.id_materia
+                      LEFT JOIN profesores p ON p.id_profesor = h.id_profesor
+                      LEFT JOIN salones s ON s.id_salon = h.id_salon
                  WHERE l.activo = 1';
 
             $params = [];
@@ -285,7 +304,7 @@ try {
 
             if ($idHorario !== null) {
                 $check = $pdo->prepare(
-                    'SELECT id_horario FROM horarios WHERE id_horario = :id_horario'
+                    'SELECT id_horario FROM horario_semanal WHERE id_horario = :id_horario'
                 );
                 $check->execute(['id_horario' => $idHorario]);
 

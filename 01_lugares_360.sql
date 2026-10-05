@@ -15,7 +15,7 @@ CREATE TABLE IF NOT EXISTS lugares_360 (
   KEY idx_lugares_panorama (panorama_id),
   KEY idx_lugares_horario (id_horario),
   CONSTRAINT fk_lugares_horario
-    FOREIGN KEY (id_horario) REFERENCES horarios (id_horario)
+    FOREIGN KEY (id_horario) REFERENCES horario_semanal (id_horario)
     ON DELETE RESTRICT
     ON UPDATE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;

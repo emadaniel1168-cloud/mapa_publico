@@ -928,10 +928,10 @@
             return {
                 id_horario: horario.id_horario,
                 grado: horario.id_grado,
-                dia: horario.dia_semana,
-                bloque: horario.num_bloque_clase,
-                curso: horario.materia,
-                profesor: horario.id_profesor,
+                dia: horario.dia_semana || horario.dia,
+                bloque: horario.num_bloque_clase ?? horario.bloque,
+                curso: horario.materia || horario.curso,
+                profesor: horario.profesor || horario.nombre_profesor || horario.id_profesor,
                 salon: horario.salon,
                 hora_fin_sena: horario.hora_fin_sena,
                 hora_inicio: horario.hora_inicio,
@@ -974,14 +974,17 @@
 
         async function cargarHorariosColegio() {
             try {
-                const response = await fetch('horarios.json', { cache: 'no-store' });
+                const response = await fetch('api.php?action=horarios', { cache: 'no-store' });
                 const payload = await response.json();
-                horariosColegio = Array.isArray(payload) ? payload : (payload.horarios || []);
+                if (!response.ok || !payload?.ok || !Array.isArray(payload.items)) {
+                    throw new Error(payload?.error || 'No se pudieron cargar los horarios desde la base de datos.');
+                }
+                horariosColegio = payload.items.map(normalizarHorarioDeBase);
             } catch (error) {
                 try {
-                    const response = await fetch('api.php?action=horarios', { cache: 'no-store' });
+                    const response = await fetch('horarios.json', { cache: 'no-store' });
                     const payload = await response.json();
-                    horariosColegio = (payload.items || []).map(normalizarHorarioDeBase);
+                    horariosColegio = Array.isArray(payload) ? payload : (payload.horarios || []);
                 } catch (fallbackError) {
                     console.warn('No se pudo cargar el listado de horarios', fallbackError);
                 }
